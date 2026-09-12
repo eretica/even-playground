@@ -109,6 +109,8 @@ bridge.onEvenHubEvent(ev => {
   - **空ディレクトリ(`os.tmpdir()/scouter-claude-p`)を cwd にして起動する**。リポジトリ内で起動すると CLAUDE.md / メモリが読み込まれ入力が 18K トークンになる(空 cwd で 4K)。
   - モデルが構造化出力の引数を `{"parameter": "<JSON文字列>"}` に包んでスキーマ不一致 → 再試行で 2 倍遅くなることがある。プロンプトで「トップレベルに直接入れる」と明記して解消。
   - 生出力の確認は `node --import tsx scripts/claude-p-debug.ts [発話数]`、ターン内訳は `STREAM=1` を付ける。
+- **STT はローカル whisper.cpp が本線**(`brew install whisper-cpp` 済み、モデルは `apps/scouter/server/models/`、gitignore)。`npm run start` が `whisper-server --inference-path /v1/audio/transcriptions --vad` を自動起動し、プロキシは OpenAI 互換として叩く。1 チャンク 0.25 秒、日本語精度は良好。無音・雑音の幻聴は VAD + `dropHallucination` で抑止。
+- Gemini API の無料枠は `gemini-3.6-flash` で **1 日 20 リクエスト**(実測)。このアプリには使えない。Google AI Pro は API 枠に効かず、Gemini CLI は起動 12 秒 + Workspace アカウントで `GOOGLE_CLOUD_PROJECT` 必須のため STT には不向き。
 - サーバ本体は `server/app.ts`(Web 標準 Request/Response)。Node(`index.ts`)と Workers(`worker.ts`)は薄いアダプタ。プロバイダを足すときは `stt.ts` / `llm.ts` に `Config` を受け取る関数で追加する。
 - 表示更新コスト: `textContainerUpgrade` ≒ 83ms、`rebuildPageContainer` ≒ 165ms(コンテナ数に依らず一定)、画像 ≒ 104ms + サイズ。**3 つ以上のコンテナを同時に変えるなら rebuild の方が速い**。
 
