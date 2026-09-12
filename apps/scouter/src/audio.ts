@@ -4,8 +4,9 @@ import type { Speaker, TranscribeResponse } from '../shared/types'
 
 const SAMPLE_RATE = 16000
 const BYTES_PER_SEC = SAMPLE_RATE * 2
-/** これだけ溜まったら送る */
-const CHUNK_MS = 2500
+/** これだけ溜まったら送る(発話の切れ目があれば SILENCE_GAP_MS で先に送る)。
+ *  ローカル whisper は 0.3 秒で返るので長めにして文の途中切れを減らす */
+const CHUNK_MS = 4000
 /** この長さ未満の音声は送らない(ノイズ節約) */
 const MIN_MS = 600
 /** 無音判定の RMS しきい値(int16) */
