@@ -65,7 +65,8 @@ npm run qr                            # 実機: QR を出してスマホの Even
 
 - claude-code は**セッション継続モード**が既定(`CLAUDE_CODE_SESSION=1`)。初回だけ直近 `PROMPT_TURNS`(10)発話を渡してセッションを作り、以降は `--resume` で**新しい発話だけ**送る。1 回 約 3 秒、キャッシュヒット。`SESSION_MAX_CALLS`(40)回か `SESSION_MAX_MINUTES`(30)分で、`memory`(Claude が毎回更新する会話の要点)+ 直近発話を持って新セッションに巻き直す。`--resume` に失敗しても同じ手順で自動復旧。
 - `CLAUDE_CODE_SESSION=0` にすると毎回独立(memory + 直近 10 発話)。API プロバイダ(anthropic/openai/gemini)は常にこの方式。
-- `CLAUDE_CODE_MODEL=opus` で精度寄り、`haiku` で速度寄り。サブスクの枠は呼び出しごとに消費するので、長時間使うなら `ANALYZE_MIN_INTERVAL_MS`(`src/main.ts`、4 秒)を伸ばす。
+- 実測(sonnet/low): 1 回 6〜10 秒。内訳はほぼ Claude の生成時間(出力 約 500 トークン)。入力は空ディレクトリで起動して 4K トークン程度(リポジトリ内で起動すると CLAUDE.md 等が読み込まれ 18K に膨らむ)。`haiku` は構造化出力で再試行が増えて逆に遅かった(18 秒)ので既定は sonnet。`opus` は精度寄り。
+- サブスクの枠は呼び出しごとに消費するので、長時間使うなら `ANALYZE_MIN_INTERVAL_MS`(`src/main.ts`、4 秒)を伸ばす。
 - 生の `claude -p` 出力を見たいときは `node --import tsx scripts/claude-p-debug.ts [発話数]`。
 - mock は音声を送ると決め打ちの日本語文を返し、キーワードでゲージを動かす。パイプライン確認用。
 

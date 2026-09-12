@@ -106,7 +106,9 @@ bridge.onEvenHubEvent(ev => {
   - stdin は必ず閉じる(`stdio: ['ignore', …]`)。`--bare` はキーチェーンを読まずログイン無し扱いになるので付けない。
   - `--max-turns 1` だと長い会話で `terminal_reason: max_turns` になり空振りする(構造化出力はツール呼び出しで前置きに 1 ターン使う)。
   - セッション継続: 初回 `--system-prompt` 付きでセッション作成 → 以降 `--resume <session_id>` に新しい発話だけ渡す(約 3 秒、cache hit)。`--resume` 時は system prompt を再送しない。上限で `memory` + 直近発話に巻き直す。
-  - 生出力の確認は `node --import tsx scripts/claude-p-debug.ts`。
+  - **空ディレクトリ(`os.tmpdir()/scouter-claude-p`)を cwd にして起動する**。リポジトリ内で起動すると CLAUDE.md / メモリが読み込まれ入力が 18K トークンになる(空 cwd で 4K)。
+  - モデルが構造化出力の引数を `{"parameter": "<JSON文字列>"}` に包んでスキーマ不一致 → 再試行で 2 倍遅くなることがある。プロンプトで「トップレベルに直接入れる」と明記して解消。
+  - 生出力の確認は `node --import tsx scripts/claude-p-debug.ts [発話数]`、ターン内訳は `STREAM=1` を付ける。
 - サーバ本体は `server/app.ts`(Web 標準 Request/Response)。Node(`index.ts`)と Workers(`worker.ts`)は薄いアダプタ。プロバイダを足すときは `stt.ts` / `llm.ts` に `Config` を受け取る関数で追加する。
 - 表示更新コスト: `textContainerUpgrade` ≒ 83ms、`rebuildPageContainer` ≒ 165ms(コンテナ数に依らず一定)、画像 ≒ 104ms + サイズ。**3 つ以上のコンテナを同時に変えるなら rebuild の方が速い**。
 

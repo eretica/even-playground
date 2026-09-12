@@ -35,10 +35,10 @@ export function normalizeAnalysis(a: Analysis): Analysis {
       rapport: clamp(a.scores.rapport),
       openness: clamp(a.scores.openness),
     },
-    digDeeper: a.digDeeper.filter(Boolean).slice(0, 3).map(s => clip(s, 40)),
-    suggestions: a.suggestions.filter(Boolean).slice(0, 3).map(s => clip(s, 40)),
-    summary: clip(a.summary, 60),
-    memory: clip(a.memory ?? '', 200),
+    digDeeper: a.digDeeper.filter(Boolean).slice(0, 3).map(s => clip(s, 30)),
+    suggestions: a.suggestions.filter(Boolean).slice(0, 3).map(s => clip(s, 30)),
+    summary: clip(a.summary, 40),
+    memory: clip(a.memory ?? '', 140),
   }
 }
 

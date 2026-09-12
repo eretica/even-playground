@@ -7,6 +7,9 @@
 //            上限(呼び出し回数 / 経過時間)に達したら、memory(要約)+ 直近 N 発話で新セッションに巻き直す。
 //   0        毎回独立: memory + 直近 N 発話を渡す(セッションファイルを残さない)。
 import { spawn, spawnSync } from 'node:child_process'
+import { mkdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Analysis, AnalyzeRequest, TranscriptTurn } from '../shared/types'
 import type { Config } from './config'
 import type { LlmProvider } from './llm'
@@ -14,6 +17,16 @@ import { buildDeltaPrompt, buildUserPrompt, SYSTEM_PROMPT } from './prompt'
 import { ANALYSIS_JSON_SCHEMA, AnalysisSchema, normalizeAnalysis } from './schema'
 
 const TIMEOUT_MS = 90_000
+
+/**
+ * claude -p を起動する作業ディレクトリ。リポジトリ内で起動すると CLAUDE.md やメモリが自動で読み込まれ、
+ * 入力が 1 万トークン超に膨らんで遅く・高くなるので、空のディレクトリで動かす。
+ */
+export function claudeWorkDir(): string {
+  const dir = join(tmpdir(), 'scouter-claude-p')
+  mkdirSync(dir, { recursive: true })
+  return dir
+}
 
 export function claudeCodeAvailable(bin = 'claude'): string | null {
   const r = spawnSync(bin, ['--version'], { encoding: 'utf8', timeout: 10_000 })
@@ -49,7 +62,7 @@ function tryJson(text: string | undefined): unknown {
 function runClaude(bin: string, args: string[]): Promise<ClaudeResult> {
   return new Promise((resolve, reject) => {
     // stdin は必ず閉じる(開いたままだと claude が 3 秒待って警告し、失敗することがある)
-    const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], cwd: claudeWorkDir() })
     let out = ''
     let err = ''
     const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error(`claude -p timeout ${TIMEOUT_MS}ms`)) }, TIMEOUT_MS)
