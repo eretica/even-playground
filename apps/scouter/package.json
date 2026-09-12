@@ -1,0 +1,34 @@
+{
+  "name": "scouter",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/dev-all.mjs",
+    "dev": "vite",
+    "server": "node --env-file-if-exists=server/.env --import tsx server/index.ts",
+    "sim": "evenhub-simulator -g http://localhost:5180",
+    "sim:auto": "evenhub-simulator http://localhost:5180 --automation-port 9898",
+    "qr": "evenhub qr --url \"http://$(ipconfig getifaddr en0):5180\"",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
+    "pack": "npm run build && evenhub pack app.json dist --sdk-ver 0.0.15 -o scouter.ehpk",
+    "icon": "node scripts/make-icon.mjs",
+    "worker:dev": "wrangler dev --port 8788",
+    "worker:deploy": "wrangler deploy",
+    "worker:tail": "wrangler tail"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.125.0",
+    "@evenrealities/even_hub_sdk": "^0.0.15",
+    "@evenrealities/pretext": "^0.1.4",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vite": "^8.0.0",
+    "wrangler": "^4.131.0"
+  }
+}

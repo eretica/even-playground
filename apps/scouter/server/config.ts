@@ -1,0 +1,52 @@
+// 環境変数 → 設定。Node(process.env)でも Workers(env バインディング)でも同じ形にする。
+export interface Config {
+  sttProvider: string
+  llmProvider: string
+  sttLanguage: string
+  openaiKey?: string
+  geminiKey?: string
+  anthropicKey?: string
+  /** Node 側で `ant auth login` のプロファイルがある等、キー以外で Anthropic を使える場合 true */
+  anthropicHasCreds: boolean
+  openaiSttModel: string
+  /** OpenAI 互換の文字起こしエンドポイント(ローカル whisper サーバ等に差し替え可) */
+  openaiSttBaseUrl: string
+  geminiSttModel: string
+  anthropicModel: string
+  anthropicEffort: 'low' | 'medium' | 'high'
+  openaiLlmModel: string
+  geminiLlmModel: string
+  /** Claude Code(`claude -p`)を使う場合。Node 専用 */
+  claudeBin: string
+  claudeCodeModel: string
+  claudeCodeEffort: string
+  /** 設定されていれば /transcribe と /analyze に Bearer 認証を要求する */
+  sharedSecret?: string
+}
+
+export type EnvLike = Record<string, string | undefined>
+
+export function configFromEnv(env: EnvLike, opts: { anthropicHasCreds?: boolean } = {}): Config {
+  const s = (k: string, d = '') => (env[k] ?? d).toString().trim()
+  const effort = s('ANTHROPIC_EFFORT', 'low')
+  return {
+    sttProvider: s('STT_PROVIDER', 'auto').toLowerCase(),
+    llmProvider: s('LLM_PROVIDER', 'auto').toLowerCase(),
+    sttLanguage: s('STT_LANGUAGE', 'ja'),
+    openaiKey: s('OPENAI_API_KEY') || undefined,
+    geminiKey: s('GEMINI_API_KEY') || undefined,
+    anthropicKey: s('ANTHROPIC_API_KEY') || undefined,
+    anthropicHasCreds: Boolean(s('ANTHROPIC_API_KEY') || s('ANTHROPIC_AUTH_TOKEN') || opts.anthropicHasCreds),
+    openaiSttModel: s('OPENAI_STT_MODEL', 'gpt-4o-mini-transcribe'),
+    openaiSttBaseUrl: s('OPENAI_STT_BASE_URL', 'https://api.openai.com/v1').replace(/\/+$/, ''),
+    geminiSttModel: s('GEMINI_STT_MODEL', 'gemini-2.5-flash'),
+    anthropicModel: s('ANTHROPIC_MODEL', 'claude-opus-5'),
+    anthropicEffort: (effort === 'medium' || effort === 'high' ? effort : 'low'),
+    openaiLlmModel: s('OPENAI_LLM_MODEL', 'gpt-4o-mini'),
+    geminiLlmModel: s('GEMINI_LLM_MODEL', 'gemini-2.5-flash'),
+    claudeBin: s('CLAUDE_BIN', 'claude'),
+    claudeCodeModel: s('CLAUDE_CODE_MODEL', 'sonnet'),
+    claudeCodeEffort: s('CLAUDE_CODE_EFFORT', 'low'),
+    sharedSecret: s('SHARED_SECRET') || undefined,
+  }
+}

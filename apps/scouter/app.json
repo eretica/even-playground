@@ -1,0 +1,22 @@
+{
+  "package_id": "com.eretica.scouter",
+  "edition": "202601",
+  "name": "Scouter",
+  "version": "0.1.0",
+  "min_sdk_version": "0.0.15",
+  "entrypoint": "index.html",
+  "permissions": [
+    {
+      "name": "g2-microphone",
+      "desc": "会話の音声を解析サーバへ送り、相手の感情ゲージ・会話の提案を表示します。音声は保存しません。マイクは起動時 OFF で、タップで開始します。"
+    },
+    {
+      "name": "network",
+      "desc": "ラップトップ上の解析サーバ(apps/scouter/server)へ音声と文字起こしを送信します。URL は開発中の LAN アドレスです。",
+      "whitelist": [
+        "http://192.168.1.2:8787"
+      ]
+    }
+  ],
+  "supported_languages": ["ja", "en"]
+}

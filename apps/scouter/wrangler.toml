@@ -1,0 +1,25 @@
+# Cloudflare Workers 用設定(本番プロキシ)
+#   npx wrangler login
+#   npx wrangler secret put SHARED_SECRET      # アプリ側「サーバトークン」と同じ値(長いランダム文字列)
+#   npx wrangler secret put OPENAI_API_KEY     # STT 用(または GEMINI_API_KEY)
+#   npx wrangler secret put ANTHROPIC_API_KEY  # LLM 用(または OPENAI_API_KEY / GEMINI_API_KEY)
+#   npm run worker:deploy                      # → https://scouter-proxy.<account>.workers.dev
+# デプロイ後、その URL を app.json の whitelist とスマホ側設定に入れる。
+name = "scouter-proxy"
+main = "server/worker.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[vars]
+STT_PROVIDER = "auto"
+LLM_PROVIDER = "auto"
+STT_LANGUAGE = "ja"
+OPENAI_STT_MODEL = "gpt-4o-mini-transcribe"
+GEMINI_STT_MODEL = "gemini-2.5-flash"
+ANTHROPIC_MODEL = "claude-opus-5"
+ANTHROPIC_EFFORT = "low"
+OPENAI_LLM_MODEL = "gpt-4o-mini"
+GEMINI_LLM_MODEL = "gemini-2.5-flash"
