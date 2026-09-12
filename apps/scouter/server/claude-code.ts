@@ -19,10 +19,18 @@ export function claudeCodeAvailable(bin = 'claude'): string | null {
 
 interface ClaudeResult {
   is_error?: boolean
+  subtype?: string
+  terminal_reason?: string
+  num_turns?: number
   result?: string
   structured_output?: unknown
   duration_ms?: number
   total_cost_usd?: number
+}
+
+function tryJson(text: string | undefined): unknown {
+  if (!text) return null
+  try { return JSON.parse(text) } catch { return null }
 }
 
 export function claudeCodeProvider(cfg: Config): LlmProvider {
@@ -37,7 +45,9 @@ export function claudeCodeProvider(cfg: Config): LlmProvider {
         '--model', cfg.claudeCodeModel,
         '--effort', cfg.claudeCodeEffort,
         '--tools', '',
-        '--max-turns', '1',
+        // 構造化出力はツール呼び出しとして実装されており、長い会話では前置きに 1 ターン使うことがある。
+        // 1 だと terminal_reason=max_turns で空振りするので余裕を持たせる(ツールは全部無効なので暴走しない)
+        '--max-turns', '4',
         '--no-session-persistence',
         buildUserPrompt(req),
       ]
@@ -52,7 +62,8 @@ export function claudeCodeProvider(cfg: Config): LlmProvider {
         child.on('error', e => { clearTimeout(timer); reject(new Error(`claude -p spawn failed: ${e.message}`)) })
         child.on('close', code => {
           clearTimeout(timer)
-          if (code === 0) resolve(out)
+          // 非 0 でも stdout に結果 JSON が出ていれば、そこから理由を読む(max_turns 等)
+          if (code === 0 || out.trim().startsWith('{')) resolve(out)
           else reject(new Error(`claude -p exit ${code}: ${(err || out).slice(0, 300)}`))
         })
       })
@@ -62,9 +73,11 @@ export function claudeCodeProvider(cfg: Config): LlmProvider {
       } catch {
         throw new Error(`claude -p returned non-JSON: ${stdout.slice(0, 200)}`)
       }
-      if (parsed.is_error) throw new Error(`claude -p error: ${parsed.result ?? 'unknown'}`)
-      const raw = parsed.structured_output ?? (parsed.result ? JSON.parse(parsed.result) : null)
-      if (!raw) throw new Error('claude -p returned no structured_output')
+      const raw = parsed.structured_output ?? tryJson(parsed.result)
+      if (!raw) {
+        const why = parsed.terminal_reason ?? parsed.subtype ?? 'unknown'
+        throw new Error(`claude -p: 構造化出力なし (${why}${parsed.is_error ? ', is_error' : ''}) ${String(parsed.result ?? '').slice(0, 200)}`)
+      }
       return normalizeAnalysis(AnalysisSchema.parse(raw))
     },
   }
