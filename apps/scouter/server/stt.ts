@@ -63,23 +63,34 @@ function openai(cfg: Config): SttProvider {
 }
 
 function gemini(cfg: Config): SttProvider {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cfg.geminiSttModel}:generateContent?key=${cfg.geminiKey}`
+  // 思考をオフにすると 2 秒の音声で 6.7 秒 → 3.3 秒(gemini-3.6-flash 実測)。
+  // 古いモデルは thinkingLevel を受け付けない(400)ので、その場合は設定なしで再試行する。
+  let thinkingSupported = true
+  const call = async (pcm: Uint8Array, lang: string, withThinking: boolean) => {
+    const body = {
+      contents: [{
+        parts: [
+          { inline_data: { mime_type: 'audio/wav', data: toBase64(wavWrap(pcm)) } },
+          { text: `Transcribe this audio verbatim in ${LANG_NAME[lang] ?? lang}. Output only the transcript text, no quotes, no commentary. If the audio is silence, noise, music, or tones with no intelligible speech, output nothing at all.` },
+        ],
+      }],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 256,
+        ...(withThinking ? { thinkingConfig: { thinkingLevel: 'low' } } : {}),
+      },
+    }
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  }
   return {
     name: 'gemini',
     async transcribe(pcm, lang) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${cfg.geminiSttModel}:generateContent?key=${cfg.geminiKey}`
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { inline_data: { mime_type: 'audio/wav', data: toBase64(wavWrap(pcm)) } },
-              { text: `Transcribe this audio verbatim in ${LANG_NAME[lang] ?? lang}. Output only the transcript text, no quotes, no commentary. If there is no intelligible speech, output nothing.` },
-            ],
-          }],
-          generationConfig: { temperature: 0 },
-        }),
-      })
+      let res = await call(pcm, lang, thinkingSupported)
+      if (res.status === 400 && thinkingSupported) {
+        thinkingSupported = false
+        res = await call(pcm, lang, false)
+      }
       if (!res.ok) throw new Error(`gemini stt ${res.status}: ${(await res.text()).slice(0, 200)}`)
       const json = (await res.json()) as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }
       return (json.candidates?.[0]?.content?.parts ?? []).map(p => p.text ?? '').join('').trim()
