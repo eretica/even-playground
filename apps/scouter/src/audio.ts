@@ -12,6 +12,8 @@ const MIN_MS = 600
 const SILENCE_RMS = 350
 /** 発話の後、これだけ無音が続いたら区切って送る */
 const SILENCE_GAP_MS = 700
+/** 429 を受けたらこれだけ送信を止める */
+const RATE_LIMIT_PAUSE_MS = 60_000
 
 export interface AudioStats {
   frames: number
@@ -22,6 +24,8 @@ export interface AudioStats {
   lastRms: number
   lastError: string
   inFlight: number
+  /** レート制限で送信を止めている間の解除時刻(ms)。0 なら通常 */
+  pausedUntil: number
 }
 
 export interface TranscriptResult {
@@ -38,7 +42,7 @@ interface SpeakerBuffer {
 }
 
 export class AudioPipeline {
-  readonly stats: AudioStats = { frames: 0, bytes: 0, sent: 0, ok: 0, failed: 0, lastRms: 0, lastError: '', inFlight: 0 }
+  readonly stats: AudioStats = { frames: 0, bytes: 0, sent: 0, ok: 0, failed: 0, lastRms: 0, lastError: '', inFlight: 0, pausedUntil: 0 }
   private buffers = new Map<Speaker, SpeakerBuffer>()
   private queue: Promise<void> = Promise.resolve()
   private active = false
@@ -118,6 +122,8 @@ export class AudioPipeline {
 
     const url = this.opts.proxyUrl()
     if (!url) return
+    // レート制限中は送らずに捨てる(溜めても上限が増えるわけではない)
+    if (this.stats.pausedUntil > Date.now()) return
     this.queue = this.queue.then(() => this.send(url, pcm, speaker)).catch(() => undefined)
   }
 
@@ -135,6 +141,10 @@ export class AudioPipeline {
         body: new Blob([pcm.buffer as ArrayBuffer], { type: 'application/octet-stream' }),
       })
       const json = (await res.json()) as TranscribeResponse
+      if (res.status === 429) {
+        this.stats.pausedUntil = Date.now() + RATE_LIMIT_PAUSE_MS
+        throw new Error(`STT レート制限。${RATE_LIMIT_PAUSE_MS / 1000} 秒送信を止めます: ${json.ok ? '' : json.error.slice(0, 120)}`)
+      }
       if (!res.ok || !json.ok) {
         const err = json.ok ? `HTTP ${res.status}` : json.error
         throw new Error(err)

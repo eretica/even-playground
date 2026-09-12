@@ -1,6 +1,8 @@
 // プロキシ + Vite + シミュレータを 1 コマンドで起動する(npm run start)。
 // Ctrl+C で全部止まる。ログは [server] [vite] [sim] のプレフィックス付き。
 import { spawn } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 const PORT = 5180
 // シミュレータに渡す追加オプション。例: npm run start -- --automation-port 9898
@@ -52,6 +54,26 @@ async function waitFor(url, ms) {
   return false
 }
 
+// server/.env を軽く読む(サーバ本体は node --env-file で読むが、ここでは whisper を起動するかの判断に使う)
+function readDotenv(path) {
+  const out = {}
+  if (!existsSync(path)) return out
+  for (const line of readFileSync(path, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/)
+    if (m && !line.trim().startsWith('#')) out[m[1]] = m[2].replace(/^["']|["']$/g, '')
+  }
+  return out
+}
+const dotenv = readDotenv('server/.env')
+const envOf = k => process.env[k] ?? dotenv[k]
+
+// ローカル whisper: STT_PROVIDER=whisper のとき、または auto でバイナリとモデルが揃っているとき自動起動
+const WHISPER_MODEL = envOf('WHISPER_MODEL') || 'server/models/ggml-large-v3-turbo.bin'
+const WHISPER_PORT = Number((envOf('WHISPER_URL') || 'http://127.0.0.1:8178/v1').match(/:(\d+)/)?.[1] || 8178)
+const sttWant = (envOf('STT_PROVIDER') || 'auto').toLowerCase()
+const hasWhisperBin = (await import('node:child_process')).spawnSync('which', ['whisper-server']).status === 0
+const useWhisper = !MOCK && (sttWant === 'whisper' || (sttWant === 'auto' && hasWhisperBin && existsSync(WHISPER_MODEL)))
+
 // 前回のシミュレータが残っていると入力が二重処理されるので先に落とす
 spawn('pkill', ['-f', 'evenhub-simulator'])
 await new Promise(r => setTimeout(r, 500))
@@ -62,8 +84,18 @@ if (await waitFor('http://127.0.0.1:8787/health', 500)) {
   process.stdout.write(`\x1b[36m[server]\x1b[0m :8787 は既に起動済みなのでそちらを使います(stt=${h?.stt} llm=${h?.llm})${MOCK ? ' ※ --mock は既存サーバには効きません。止めてから起動し直してください' : ''}\n`)
 } else {
   if (MOCK) process.stdout.write('\x1b[36m[server]\x1b[0m --mock: STT / LLM ともモックで起動します\n')
+  if (useWhisper) {
+    if (!hasWhisperBin || !existsSync(WHISPER_MODEL)) {
+      process.stdout.write(`\x1b[31m[whisper]\x1b[0m whisper-server かモデル(${WHISPER_MODEL})が見つかりません。npm run whisper:setup を実行してください\n`)
+    } else if (await waitFor(`http://127.0.0.1:${WHISPER_PORT}/`, 300)) {
+      process.stdout.write(`\x1b[34m[whisper]\x1b[0m :${WHISPER_PORT} は既に起動済みなのでそちらを使います\n`)
+    } else {
+      run('whisper', 'whisper-server', ['-m', WHISPER_MODEL, '-l', envOf('STT_LANGUAGE') || 'ja', '--host', '127.0.0.1', '--port', String(WHISPER_PORT),
+        '--inference-path', '/v1/audio/transcriptions', '--no-timestamps'], 34)
+    }
+  }
   run('server', 'node', ['--env-file-if-exists=server/.env', '--import', 'tsx', 'server/index.ts'], 36,
-    MOCK ? { STT_PROVIDER: 'mock', LLM_PROVIDER: 'mock' } : {})
+    MOCK ? { STT_PROVIDER: 'mock', LLM_PROVIDER: 'mock' } : useWhisper ? { STT_PROVIDER: 'whisper' } : {})
 }
 // Vite も同様: 既に :5180 で動いていればそれを使う
 let ok = await waitFor(`http://127.0.0.1:${PORT}/`, 500)

@@ -41,9 +41,9 @@ function toBase64(bytes: Uint8Array): string {
 
 const LANG_NAME: Record<string, string> = { ja: 'Japanese', en: 'English' }
 
-function openai(cfg: Config): SttProvider {
+function openai(cfg: Config, name = 'openai'): SttProvider {
   return {
-    name: 'openai',
+    name,
     async transcribe(pcm, lang) {
       const form = new FormData()
       form.append('file', new Blob([wavWrap(pcm).buffer as ArrayBuffer], { type: 'audio/wav' }), 'chunk.wav')
@@ -108,6 +108,8 @@ const mock: SttProvider = {
 
 export function pickStt(cfg: Config): SttProvider {
   const want = cfg.sttProvider
+  // whisper = ローカルの whisper-server(--inference-path /v1/audio/transcriptions で OpenAI 互換)
+  if (want === 'whisper') return openai({ ...cfg, openaiKey: undefined, openaiSttBaseUrl: cfg.whisperUrl }, 'whisper')
   if (want === 'openai') return openai(cfg)
   if (want === 'gemini') return gemini(cfg)
   if (want === 'mock') return mock

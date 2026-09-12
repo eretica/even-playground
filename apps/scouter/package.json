@@ -16,6 +16,7 @@
     "build": "tsc --noEmit && vite build",
     "pack": "npm run build && evenhub pack app.json dist --sdk-ver 0.0.15 -o scouter.ehpk",
     "icon": "node scripts/make-icon.mjs",
+    "whisper:setup": "node scripts/whisper-setup.mjs",
     "worker:dev": "wrangler dev --port 8788",
     "worker:deploy": "wrangler deploy",
     "worker:tail": "wrangler tail"

@@ -12,6 +12,8 @@ export interface Config {
   /** OpenAI 互換の文字起こしエンドポイント(ローカル whisper サーバ等に差し替え可) */
   openaiSttBaseUrl: string
   geminiSttModel: string
+  /** ローカル whisper-server の OpenAI 互換ベース URL */
+  whisperUrl: string
   anthropicModel: string
   anthropicEffort: 'low' | 'medium' | 'high'
   openaiLlmModel: string
@@ -47,6 +49,7 @@ export function configFromEnv(env: EnvLike, opts: { anthropicHasCreds?: boolean 
     openaiSttModel: s('OPENAI_STT_MODEL', 'gpt-4o-mini-transcribe'),
     openaiSttBaseUrl: s('OPENAI_STT_BASE_URL', 'https://api.openai.com/v1').replace(/\/+$/, ''),
     geminiSttModel: s('GEMINI_STT_MODEL', 'gemini-3.6-flash'),
+    whisperUrl: s('WHISPER_URL', 'http://127.0.0.1:8178/v1').replace(/\/+$/, ''),
     anthropicModel: s('ANTHROPIC_MODEL', 'claude-opus-5'),
     anthropicEffort: (effort === 'medium' || effort === 'high' ? effort : 'low'),
     openaiLlmModel: s('OPENAI_LLM_MODEL', 'gpt-4o-mini'),

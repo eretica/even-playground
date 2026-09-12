@@ -92,8 +92,10 @@ export function createApp(cfg: Config, opts: { log?: (line: string) => void; ext
       return json(404, { ok: false, error: `no route: ${req.method} ${url.pathname}` })
     } catch (e) {
       const msg = (e as Error).message ?? String(e)
-      done(500, msg)
-      return json(500, { ok: false, error: msg })
+      // 上流(STT/LLM)のレート制限はそのまま 429 で返し、クライアントがバックオフできるようにする
+      const status = /\b429\b|RESOURCE_EXHAUSTED|rate limit/i.test(msg) ? 429 : 500
+      done(status, msg)
+      return json(status, { ok: false, error: msg })
     }
   }
 
