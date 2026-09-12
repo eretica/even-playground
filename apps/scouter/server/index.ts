@@ -17,7 +17,7 @@ const cfg = configFromEnv(process.env, {
 })
 // Claude Code がログイン済みならサブスク枠の `claude -p` を LLM に使う(auto 時の最優先)
 const claudeVersion = cfg.llmProvider === 'mock' ? null : claudeCodeAvailable(cfg.claudeBin)
-const extraLlm: Record<string, LlmProvider> = claudeVersion ? { 'claude-code': claudeCodeProvider(cfg) } : {}
+const extraLlm: Record<string, LlmProvider> = claudeVersion ? { 'claude-code': claudeCodeProvider(cfg, console.log) } : {}
 const app = createApp(cfg, { extraLlm })
 
 function readBody(req: IncomingMessage): Promise<Buffer> {
@@ -48,7 +48,7 @@ server.listen(PORT, '0.0.0.0', () => {
     .flat()
     .filter(n => n && n.family === 'IPv4' && !n.internal)
     .map(n => n!.address)
-  console.log(`scouter proxy (node)  stt=${app.stt.name}  llm=${app.llm.name}${app.llm.name === 'claude-code' ? ` (${cfg.claudeCodeModel}/${cfg.claudeCodeEffort}, Claude Code ${claudeVersion})` : ''}  auth=${cfg.sharedSecret ? 'on' : 'off'}`)
+  console.log(`scouter proxy (node)  stt=${app.stt.name}  llm=${app.llm.name}${app.llm.name === 'claude-code' ? ` (${cfg.claudeCodeModel}/${cfg.claudeCodeEffort}, session=${cfg.claudeCodeSession ? 'on' : 'off'}, Claude Code ${claudeVersion})` : ''}  auth=${cfg.sharedSecret ? 'on' : 'off'}`)
   console.log(`listening on http://0.0.0.0:${PORT}`)
   for (const ip of ips) console.log(`  → http://${ip}:${PORT}  (app.json の whitelist / スマホ側設定に使う)`)
   if (app.stt.name === 'mock' || app.llm.name === 'mock') console.log('  ※ mock モード: server/.env に API キーを設定すると本物になります')

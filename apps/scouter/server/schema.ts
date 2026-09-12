@@ -13,6 +13,7 @@ export const AnalysisSchema = z.object({
   digDeeper: z.array(z.string()),
   suggestions: z.array(z.string()),
   summary: z.string(),
+  memory: z.string().default(''),
 })
 
 /** 文字数・件数をグラスに収まる範囲へ丸める(LLM が守らなかった時の保険) */
@@ -37,6 +38,7 @@ export function normalizeAnalysis(a: Analysis): Analysis {
     digDeeper: a.digDeeper.filter(Boolean).slice(0, 3).map(s => clip(s, 40)),
     suggestions: a.suggestions.filter(Boolean).slice(0, 3).map(s => clip(s, 40)),
     summary: clip(a.summary, 60),
+    memory: clip(a.memory ?? '', 200),
   }
 }
 
@@ -44,7 +46,7 @@ export function normalizeAnalysis(a: Analysis): Analysis {
 export const ANALYSIS_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['emotions', 'face', 'mood', 'score', 'scores', 'digDeeper', 'suggestions', 'summary'],
+  required: ['emotions', 'face', 'mood', 'score', 'scores', 'digDeeper', 'suggestions', 'summary', 'memory'],
   properties: {
     emotions: {
       type: 'object',
@@ -66,5 +68,6 @@ export const ANALYSIS_JSON_SCHEMA = {
     digDeeper: { type: 'array', items: { type: 'string' } },
     suggestions: { type: 'array', items: { type: 'string' } },
     summary: { type: 'string' },
+    memory: { type: 'string' },
   },
 } as const

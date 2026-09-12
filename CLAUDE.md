@@ -102,7 +102,11 @@ bridge.onEvenHubEvent(ev => {
 
 - マイク: `audioControl(true, AudioInputSource.Glasses)`(要 `g2-microphone` 権限、startup ページ作成後)。フレームごとに `speakerRole`(self/other/unknown)が付くので **相手の発話だけを抽出可能**(アプリ側アルゴリズムの推定であり保証なし)。
 - STT/LLM の API キーはスマホに載せない。**PC 上のプロキシ(`apps/scouter/server`)** を LAN / Tailscale で叩く。`app.json` の whitelist に `http://<PC の IP>:8787` を入れる。
-- **LLM は Claude Code のサブスク枠**: `server/claude-code.ts` が `claude -p --output-format json --json-schema … --tools "" --max-turns 1` を spawn する(`structured_output` を読む)。stdin は必ず閉じる(`stdio: ['ignore', …]`)。`--bare` を付けるとキーチェーンを読まずログイン無し扱いになるので付けない。実測 3〜7 秒/回。
+- **LLM は Claude Code のサブスク枠**: `server/claude-code.ts` が `claude -p --output-format json --json-schema … --tools "" --max-turns 4` を spawn する(`structured_output` を読む)。
+  - stdin は必ず閉じる(`stdio: ['ignore', …]`)。`--bare` はキーチェーンを読まずログイン無し扱いになるので付けない。
+  - `--max-turns 1` だと長い会話で `terminal_reason: max_turns` になり空振りする(構造化出力はツール呼び出しで前置きに 1 ターン使う)。
+  - セッション継続: 初回 `--system-prompt` 付きでセッション作成 → 以降 `--resume <session_id>` に新しい発話だけ渡す(約 3 秒、cache hit)。`--resume` 時は system prompt を再送しない。上限で `memory` + 直近発話に巻き直す。
+  - 生出力の確認は `node --import tsx scripts/claude-p-debug.ts`。
 - サーバ本体は `server/app.ts`(Web 標準 Request/Response)。Node(`index.ts`)と Workers(`worker.ts`)は薄いアダプタ。プロバイダを足すときは `stt.ts` / `llm.ts` に `Config` を受け取る関数で追加する。
 - 表示更新コスト: `textContainerUpgrade` ≒ 83ms、`rebuildPageContainer` ≒ 165ms(コンテナ数に依らず一定)、画像 ≒ 104ms + サイズ。**3 つ以上のコンテナを同時に変えるなら rebuild の方が速い**。
 

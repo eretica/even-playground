@@ -25,6 +25,7 @@ let els: {
   suggestions: HTMLElement
   dig: HTMLElement
   summary: HTMLElement
+  memory: HTMLElement
   transcript: HTMLElement
   log: HTMLElement
   micBtn: HTMLButtonElement
@@ -70,6 +71,8 @@ export function mountUi(h: UiHandlers, settings: Settings) {
         <div class="label">深掘り</div>
         <ul id="dig" class="list"></ul>
         <div id="summary" class="sub"></div>
+        <div class="label">持ち越しメモ(memory)</div>
+        <div id="memory" class="sub"></div>
       </section>
 
       <section class="card">
@@ -113,7 +116,7 @@ export function mountUi(h: UiHandlers, settings: Settings) {
   els = {
     status: q('#status'), chip: q('#chip'), face: q('#face'), faceLabel: q('#faceLabel'),
     gauges: q('#gauges'), glassesText: q('#glassesText'), score: q('#score'),
-    suggestions: q('#suggestions'), dig: q('#dig'), summary: q('#summary'),
+    suggestions: q('#suggestions'), dig: q('#dig'), summary: q('#summary'), memory: q('#memory'),
     transcript: q('#transcript'), log: q('#log'), micBtn: q<HTMLButtonElement>('#mic'),
     proxy: q<HTMLInputElement>('#proxy'), proxyToken: q<HTMLInputElement>('#proxyToken'), lang: q<HTMLSelectElement>('#lang'),
     unknownAs: q<HTMLSelectElement>('#unknownAs'), idle: q<HTMLInputElement>('#idle'),
@@ -189,6 +192,7 @@ export function setAnalysis(a: Analysis) {
   els.suggestions.innerHTML = a.suggestions.map(s => `<li>${esc(s)}</li>`).join('') || '<li class="dim">—</li>'
   els.dig.innerHTML = a.digDeeper.map(s => `<li>${esc(s)}</li>`).join('') || '<li class="dim">—</li>'
   els.summary.textContent = a.summary
+  els.memory.textContent = a.memory || '—'
 }
 
 export function setTranscript(turns: TranscriptTurn[]) {

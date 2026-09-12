@@ -39,12 +39,16 @@ export interface Analysis {
   suggestions: string[]
   /** 会話の要約(1 文) */
   summary: string
+  /** これまでの会話の要点(LLM が毎回更新する持ち越しメモ、全角 160 字以内) */
+  memory: string
 }
 
 export interface AnalyzeRequest {
   turns: TranscriptTurn[]
   previous?: Analysis | null
   lang?: string
+  /** 会話セッションの識別子(アプリ起動・リセットごとに変わる)。サーバ側のセッション継続に使う */
+  sessionKey?: string
 }
 
 export type AnalyzeResponse =
@@ -73,4 +77,5 @@ export const EMPTY_ANALYSIS: Analysis = {
   digDeeper: [],
   suggestions: [],
   summary: '',
+  memory: '',
 }

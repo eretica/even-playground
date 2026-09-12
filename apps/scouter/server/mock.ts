@@ -54,5 +54,6 @@ export function mockAnalyze(req: AnalyzeRequest): Analysis {
     digDeeper: topic ? [`「${topic}」の背景をもう一歩`, '感情が動いた瞬間の理由'] : ['まず相手の近況を聞く'],
     suggestions: topic ? [`${topic}、どんな感じでした？`, 'それで、その後どうなったんですか？', 'それは大変でしたね'] : ['最近どうですか？'],
     summary: others.length ? `相手は${topic ? `「${topic}」について` : ''}話している(mock)` : '会話開始前(mock)',
+    memory: others.slice(-5).map(t => t.text.replace(/[。、！？!?]/g, '').slice(0, 12)).join(' / '),
   }
 }

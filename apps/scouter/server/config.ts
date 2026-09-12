@@ -20,6 +20,13 @@ export interface Config {
   claudeBin: string
   claudeCodeModel: string
   claudeCodeEffort: string
+  /** claude -p のセッション継続(--resume)を使うか */
+  claudeCodeSession: boolean
+  /** 1 セッションで許す呼び出し回数 / 分。超えたら memory + 直近発話で巻き直す */
+  sessionMaxCalls: number
+  sessionMaxMinutes: number
+  /** 新規セッション・独立呼び出し時に渡す直近発話数 */
+  promptTurns: number
   /** 設定されていれば /transcribe と /analyze に Bearer 認証を要求する */
   sharedSecret?: string
 }
@@ -47,6 +54,10 @@ export function configFromEnv(env: EnvLike, opts: { anthropicHasCreds?: boolean 
     claudeBin: s('CLAUDE_BIN', 'claude'),
     claudeCodeModel: s('CLAUDE_CODE_MODEL', 'sonnet'),
     claudeCodeEffort: s('CLAUDE_CODE_EFFORT', 'low'),
+    claudeCodeSession: s('CLAUDE_CODE_SESSION', '1') !== '0',
+    sessionMaxCalls: Number(s('SESSION_MAX_CALLS', '40')) || 40,
+    sessionMaxMinutes: Number(s('SESSION_MAX_MINUTES', '30')) || 30,
+    promptTurns: Number(s('PROMPT_TURNS', '10')) || 10,
     sharedSecret: s('SHARED_SECRET') || undefined,
   }
 }

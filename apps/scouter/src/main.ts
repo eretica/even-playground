@@ -33,6 +33,12 @@ const state = {
   analyzeTimer: 0 as number,
   lastError: '',
   nextId: 1,
+  /** サーバ側の会話セッション識別子(起動・リセットごとに更新) */
+  sessionKey: newSessionKey(),
+}
+
+function newSessionKey(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 let glasses: Glasses | null = null
@@ -152,6 +158,7 @@ function resetSession() {
   state.smooth = { joy: 0, anger: 0, sorrow: 0, pleasure: 0 }
   state.analyzedUpTo = 0
   state.lastError = ''
+  state.sessionKey = newSessionKey()
   ui.setAnalysis(state.analysis)
   ui.setTranscript(state.turns)
   ui.log('session reset')
@@ -207,6 +214,7 @@ async function analyze() {
       turns: state.turns.slice(-CONTEXT_TURNS),
       previous: state.analysis.score ? state.analysis : null,
       lang: state.settings.lang,
+      sessionKey: state.sessionKey,
     }
     const res = await fetch(new URL('/analyze', base).toString(), {
       method: 'POST',

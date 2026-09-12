@@ -24,7 +24,7 @@ function anthropicProvider(cfg: Config): LlmProvider {
         model: cfg.anthropicModel,
         max_tokens: 2048,
         system: [{ type: 'text' as const, text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' as const } }],
-        messages: [{ role: 'user' as const, content: buildUserPrompt(req) }],
+        messages: [{ role: 'user' as const, content: buildUserPrompt(req, req.turns.slice(-cfg.promptTurns)) }],
       }
       // 安全分類による拒否時はサーバ側フォールバック("default")で別モデルに切り替える。
       // 非対応環境で 400 になった場合はフォールバック無しで再試行。
@@ -61,7 +61,7 @@ function openaiProvider(cfg: Config): LlmProvider {
           model: cfg.openaiLlmModel,
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: buildUserPrompt(req) },
+            { role: 'user', content: buildUserPrompt(req, req.turns.slice(-cfg.promptTurns)) },
           ],
           response_format: { type: 'json_schema', json_schema: { name: 'analysis', strict: true, schema: ANALYSIS_JSON_SCHEMA } },
           temperature: 0.4,
@@ -88,7 +88,7 @@ function geminiProvider(cfg: Config): LlmProvider {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: [{ role: 'user', parts: [{ text: buildUserPrompt(req) }] }],
+          contents: [{ role: 'user', parts: [{ text: buildUserPrompt(req, req.turns.slice(-cfg.promptTurns)) }] }],
           generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.4 },
         }),
       })

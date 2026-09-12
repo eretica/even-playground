@@ -63,7 +63,10 @@ npm run qr                            # 実機: QR を出してスマホの Even
 | STT | `OPENAI_API_KEY` があれば OpenAI(`gpt-4o-mini-transcribe`)→ `OPENAI_STT_BASE_URL` が変えてあればそのサーバ → Gemini → mock | `STT_PROVIDER` |
 | LLM | **`claude` がログイン済みなら claude-code(`sonnet` / effort `low`)** → Anthropic API(`claude-opus-5`)→ OpenAI → Gemini → mock | `LLM_PROVIDER` |
 
-- claude-code は 1 回 3〜7 秒(実測、sonnet/low)。`CLAUDE_CODE_MODEL=opus` で精度寄り、`haiku` で速度寄りに変えられる。サブスクのレート制限は 4〜6 秒に 1 回の呼び出しで消費するので、長時間使うなら `ANALYZE_MIN_INTERVAL_MS`(`src/main.ts`)を伸ばす。
+- claude-code は**セッション継続モード**が既定(`CLAUDE_CODE_SESSION=1`)。初回だけ直近 `PROMPT_TURNS`(10)発話を渡してセッションを作り、以降は `--resume` で**新しい発話だけ**送る。1 回 約 3 秒、キャッシュヒット。`SESSION_MAX_CALLS`(40)回か `SESSION_MAX_MINUTES`(30)分で、`memory`(Claude が毎回更新する会話の要点)+ 直近発話を持って新セッションに巻き直す。`--resume` に失敗しても同じ手順で自動復旧。
+- `CLAUDE_CODE_SESSION=0` にすると毎回独立(memory + 直近 10 発話)。API プロバイダ(anthropic/openai/gemini)は常にこの方式。
+- `CLAUDE_CODE_MODEL=opus` で精度寄り、`haiku` で速度寄り。サブスクの枠は呼び出しごとに消費するので、長時間使うなら `ANALYZE_MIN_INTERVAL_MS`(`src/main.ts`、4 秒)を伸ばす。
+- 生の `claude -p` 出力を見たいときは `node --import tsx scripts/claude-p-debug.ts [発話数]`。
 - mock は音声を送ると決め打ちの日本語文を返し、キーワードでゲージを動かす。パイプライン確認用。
 
 ### 外出先から PC に届かせる
