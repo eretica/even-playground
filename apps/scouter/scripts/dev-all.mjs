@@ -7,8 +7,11 @@ const PORT = 5180
 // `--` で始まらないもの(打ち間違いで混ざった "npm" など)は無視する
 const rawArgs = process.argv.slice(2)
 const SIM_ARGS = []
+// --mock: STT も LLM もモックで起動(API キー不要、Claude のサブスク枠も消費しない)
+const MOCK = rawArgs.includes('--mock')
 for (let i = 0; i < rawArgs.length; i++) {
   const a = rawArgs[i]
+  if (a === '--mock') continue
   if (a.startsWith('--')) {
     SIM_ARGS.push(a)
     if (!a.includes('=') && rawArgs[i + 1] && !rawArgs[i + 1].startsWith('--')) SIM_ARGS.push(rawArgs[++i])
@@ -18,8 +21,8 @@ for (let i = 0; i < rawArgs.length; i++) {
 }
 
 const procs = []
-function run(name, cmd, args, color) {
-  const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], env: process.env })
+function run(name, cmd, args, color, extraEnv = {}) {
+  const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...extraEnv } })
   const tag = `\x1b[${color}m[${name}]\x1b[0m `
   const pipe = stream => {
     let buf = ''
@@ -55,9 +58,12 @@ await new Promise(r => setTimeout(r, 500))
 
 // 既に別ターミナルでプロキシが動いていればそれを使う
 if (await waitFor('http://127.0.0.1:8787/health', 500)) {
-  process.stdout.write('\x1b[36m[server]\x1b[0m :8787 は既に起動済みなのでそちらを使います\n')
+  const h = await fetch('http://127.0.0.1:8787/health').then(r => r.json()).catch(() => null)
+  process.stdout.write(`\x1b[36m[server]\x1b[0m :8787 は既に起動済みなのでそちらを使います(stt=${h?.stt} llm=${h?.llm})${MOCK ? ' ※ --mock は既存サーバには効きません。止めてから起動し直してください' : ''}\n`)
 } else {
-  run('server', 'node', ['--env-file-if-exists=server/.env', '--import', 'tsx', 'server/index.ts'], 36)
+  if (MOCK) process.stdout.write('\x1b[36m[server]\x1b[0m --mock: STT / LLM ともモックで起動します\n')
+  run('server', 'node', ['--env-file-if-exists=server/.env', '--import', 'tsx', 'server/index.ts'], 36,
+    MOCK ? { STT_PROVIDER: 'mock', LLM_PROVIDER: 'mock' } : {})
 }
 // Vite も同様: 既に :5180 で動いていればそれを使う
 let ok = await waitFor(`http://127.0.0.1:${PORT}/`, 500)

@@ -42,6 +42,7 @@ npm install
 cp server/.env.example server/.env    # キーを入れる(無ければ mock で動く)
 
 npm run start                         # プロキシ + Vite + シミュレータを 1 コマンドで(Ctrl+C で全部停止)
+npm run start:mock                    # 同上、STT/LLM ともモック(API キー不要・サブスク枠も消費しない)
 
 # 個別に動かす場合
 npm run server                        # ターミナル 1: プロキシ :8787
@@ -55,6 +56,14 @@ npm run qr                            # 実機: QR を出してスマホの Even
 - スマホ側 UI の「解析サーバ URL」は既定で `http://<ページを配信しているホスト>:8787`(= ラップトップの LAN IP)。
 - 実機で使う時は `app.json` の `whitelist` をその URL に合わせる(`npm run server` の起動ログに出る)。変えたら再 pack。
 - HMR が実機で切れるなら `VITE_HMR_HOST=<LAN IP> npm run dev`。
+
+### 必要なもの
+
+| | 必要? |
+|---|---|
+| LLM(状態解析) | **キー不要**。Claude Code のログイン(サブスク)で `claude -p` が動く |
+| STT(文字起こし) | `OPENAI_API_KEY` か `GEMINI_API_KEY` が必要。無ければ mock(決め打ちの日本語文) |
+| 全部モックで動作確認 | `npm run start:mock`(何も要らない) |
 
 ### プロバイダ(auto の優先順)
 

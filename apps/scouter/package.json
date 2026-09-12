@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "start": "node scripts/dev-all.mjs",
+    "start:mock": "node scripts/dev-all.mjs --mock",
     "dev": "vite",
     "server": "node --env-file-if-exists=server/.env --import tsx server/index.ts",
+    "server:mock": "STT_PROVIDER=mock LLM_PROVIDER=mock node --env-file-if-exists=server/.env --import tsx server/index.ts",
     "sim": "evenhub-simulator -g http://localhost:5180",
     "sim:auto": "evenhub-simulator http://localhost:5180 --automation-port 9898",
     "qr": "evenhub qr --url \"http://$(ipconfig getifaddr en0):5180\"",
