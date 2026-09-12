@@ -90,8 +90,11 @@ if (await waitFor('http://127.0.0.1:8787/health', 500)) {
     } else if (await waitFor(`http://127.0.0.1:${WHISPER_PORT}/`, 300)) {
       process.stdout.write(`\x1b[34m[whisper]\x1b[0m :${WHISPER_PORT} は既に起動済みなのでそちらを使います\n`)
     } else {
+      // VAD モデルがあれば発話区間だけを認識させる(無音・雑音での幻聴を大幅に減らす)
+      const vadModel = join('server', 'models', 'ggml-silero-v5.1.2.bin')
+      const vadArgs = existsSync(vadModel) ? ['--vad', '--vad-model', vadModel] : []
       run('whisper', 'whisper-server', ['-m', WHISPER_MODEL, '-l', envOf('STT_LANGUAGE') || 'ja', '--host', '127.0.0.1', '--port', String(WHISPER_PORT),
-        '--inference-path', '/v1/audio/transcriptions', '--no-timestamps'], 34)
+        '--inference-path', '/v1/audio/transcriptions', '--no-timestamps', ...vadArgs], 34)
     }
   }
   run('server', 'node', ['--env-file-if-exists=server/.env', '--import', 'tsx', 'server/index.ts'], 36,

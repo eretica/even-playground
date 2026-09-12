@@ -41,6 +41,13 @@ if (existsSync(dest) && statSync(dest).size > 1_000_000) {
   console.log(`[whisper] 保存: ${dest}`)
 }
 
+// VAD(発話検出)モデル。無音・雑音での幻聴を減らす。約 1MB
+const vad = join(dir, 'ggml-silero-v5.1.2.bin')
+if (!existsSync(vad)) {
+  console.log('[whisper] VAD モデルをダウンロード')
+  spawnSync('curl', ['-L', '--progress-bar', '-o', vad, 'https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin'], { stdio: 'inherit' })
+}
+
 console.log(`
 [whisper] 準備完了。server/.env に次を書くと npm run start で whisper-server が自動起動します:
   STT_PROVIDER=whisper

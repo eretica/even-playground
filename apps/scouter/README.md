@@ -62,18 +62,20 @@ npm run qr                            # 実機: QR を出してスマホの Even
 | | 必要? |
 |---|---|
 | LLM(状態解析) | **キー不要**。Claude Code のログイン(サブスク)で `claude -p` が動く |
-| STT(文字起こし) | `OPENAI_API_KEY` か `GEMINI_API_KEY` が必要。無ければ mock(決め打ちの日本語文) |
+| STT(文字起こし) | **ローカル whisper.cpp(推奨、無料・無制限)**: `npm run whisper:setup` の後 `npm run start` で自動起動。または `OPENAI_API_KEY` / `GEMINI_API_KEY`。無ければ mock |
 | 全部モックで動作確認 | `npm run start:mock`(何も要らない) |
 
 ### プロバイダ(auto の優先順)
 
 | 役割 | 既定 | 切替 |
 |---|---|---|
-| STT | `OPENAI_API_KEY` があれば OpenAI(`gpt-4o-mini-transcribe`)→ `OPENAI_STT_BASE_URL` が変えてあればそのサーバ → Gemini → mock | `STT_PROVIDER` |
+| STT | whisper-server とモデルが揃っていれば **whisper**(start が自動起動)→ `OPENAI_API_KEY` があれば OpenAI(`gpt-4o-mini-transcribe`)→ Gemini → mock | `STT_PROVIDER` |
 | LLM | **`claude` がログイン済みなら claude-code(`sonnet` / effort `low`)** → Anthropic API(`claude-opus-5`)→ OpenAI → Gemini → mock | `LLM_PROVIDER` |
 
 - claude-code は**セッション継続モード**が既定(`CLAUDE_CODE_SESSION=1`)。初回だけ直近 `PROMPT_TURNS`(10)発話を渡してセッションを作り、以降は `--resume` で**新しい発話だけ**送る。1 回 約 3 秒、キャッシュヒット。`SESSION_MAX_CALLS`(40)回か `SESSION_MAX_MINUTES`(30)分で、`memory`(Claude が毎回更新する会話の要点)+ 直近発話を持って新セッションに巻き直す。`--resume` に失敗しても同じ手順で自動復旧。
 - `CLAUDE_CODE_SESSION=0` にすると毎回独立(memory + 直近 10 発話)。API プロバイダ(anthropic/openai/gemini)は常にこの方式。
+- **Gemini 無料枠は `gemini-3.6-flash` で 1 日 20 リクエスト**(実測、`GenerateRequestsPerDayPerProjectPerModel-FreeTier`)。2.5 秒ごとに送るこのアプリでは数分で尽きるので、Gemini を使うなら課金が必要。429 を受けるとアプリは 60 秒送信を止める。
+- ローカル whisper: `whisper-server -m server/models/ggml-large-v3-turbo.bin -l ja --port 8178 --inference-path /v1/audio/transcriptions --no-timestamps` を start スクリプトが起動し、プロキシは OpenAI 互換として叩く(`WHISPER_URL`)。モデルは `server/models/`(gitignore)。
 - 実測(sonnet/low): 1 回 6〜10 秒。内訳はほぼ Claude の生成時間(出力 約 500 トークン)。入力は空ディレクトリで起動して 4K トークン程度(リポジトリ内で起動すると CLAUDE.md 等が読み込まれ 18K に膨らむ)。`haiku` は構造化出力で再試行が増えて逆に遅かった(18 秒)ので既定は sonnet。`opus` は精度寄り。
 - サブスクの枠は呼び出しごとに消費するので、長時間使うなら `ANALYZE_MIN_INTERVAL_MS`(`src/main.ts`、4 秒)を伸ばす。
 - 生の `claude -p` 出力を見たいときは `node --import tsx scripts/claude-p-debug.ts [発話数]`。

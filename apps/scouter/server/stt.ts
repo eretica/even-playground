@@ -41,6 +41,25 @@ function toBase64(bytes: Uint8Array): string {
 
 const LANG_NAME: Record<string, string> = { ja: 'Japanese', en: 'English' }
 
+/**
+ * Whisper が無音・雑音に対して返しがちな定型句(YouTube 字幕由来の幻聴)。これだけの出力は捨てる。
+ */
+const HALLUCINATIONS = [
+  /^ご視聴ありがとうございました[。.!！]?$/,
+  /^ご清聴ありがとうございました[。.!！]?$/,
+  /^チャンネル登録.*$/,
+  /^字幕.*$/,
+  /^おやすみなさい[。.!！]?$/,
+  /^(ありがとうございました|ありがとうございます)[。.!！]?$/,
+  /^\[.*\]$/,
+  /^\(.*\)$/,
+  /^♪+$/,
+]
+export function dropHallucination(text: string): string {
+  const t = text.trim()
+  return HALLUCINATIONS.some(re => re.test(t)) ? '' : t
+}
+
 function openai(cfg: Config, name = 'openai'): SttProvider {
   return {
     name,
@@ -55,9 +74,9 @@ function openai(cfg: Config, name = 'openai'): SttProvider {
         headers: cfg.openaiKey ? { Authorization: `Bearer ${cfg.openaiKey}` } : {},
         body: form,
       })
-      if (!res.ok) throw new Error(`openai stt ${res.status}: ${(await res.text()).slice(0, 200)}`)
+      if (!res.ok) throw new Error(`${name} stt ${res.status}: ${(await res.text()).slice(0, 200)}`)
       const json = (await res.json()) as { text?: string }
-      return (json.text ?? '').trim()
+      return dropHallucination(json.text ?? '')
     },
   }
 }
