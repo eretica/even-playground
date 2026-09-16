@@ -101,7 +101,8 @@ bridge.onEvenHubEvent(ev => {
 ## 会話系アプリ固有の注意(scouter)
 
 - マイク: `audioControl(true, AudioInputSource.Glasses)`(要 `g2-microphone` 権限、startup ページ作成後)。フレームごとに `speakerRole`(self/other/unknown)が付くので **相手の発話だけを抽出可能**(アプリ側アルゴリズムの推定であり保証なし)。
-- STT/LLM の API キーはスマホに載せない。**PC 上のプロキシ(`apps/scouter/server`)** を LAN / Tailscale で叩く。`app.json` の whitelist に `http://<PC の IP>:8787` を入れる。
+- STT/LLM の API キーはスマホに載せない。**PC 上のプロキシ(`apps/scouter/server`)** を叩く。開発中は Vite の `/api` プロキシ(同一オリジン)経由なので whitelist / CORS 不要。`.ehpk` 版だけ `app.json` の whitelist に `http://<PC の IP>:8787` が要る(`npm run whitelist` で LAN/Tailscale IP を同期)。
+- 実機は `npm run start:device`(QR 表示、到達先は Tailscale > LAN)。Tailscale は `brew install --cask tailscale-app`(sudo 必要、ユーザーが実行)。
 - **LLM は Claude Code のサブスク枠**: `server/claude-code.ts` が `claude -p --output-format json --json-schema … --tools "" --max-turns 4` を spawn する(`structured_output` を読む)。
   - stdin は必ず閉じる(`stdio: ['ignore', …]`)。`--bare` はキーチェーンを読まずログイン無し扱いになるので付けない。
   - `--max-turns 1` だと長い会話で `terminal_reason: max_turns` になり空振りする(構造化出力はツール呼び出しで前置きに 1 ターン使う)。

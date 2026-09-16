@@ -14,9 +14,13 @@
       "name": "network",
       "desc": "ラップトップ上の解析サーバ(apps/scouter/server)へ音声と文字起こしを送信します。URL は開発中の LAN アドレスです。",
       "whitelist": [
-        "http://192.168.1.2:8787"
+        "http://192.168.1.2:8787",
+        "http://192.168.1.3:8787"
       ]
     }
   ],
-  "supported_languages": ["ja", "en"]
+  "supported_languages": [
+    "ja",
+    "en"
+  ]
 }

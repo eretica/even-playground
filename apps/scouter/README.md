@@ -43,6 +43,8 @@ cp server/.env.example server/.env    # キーを入れる(無ければ mock で
 
 npm run start                         # プロキシ + Vite + シミュレータを 1 コマンドで(Ctrl+C で全部停止)
 npm run start:mock                    # 同上、STT/LLM ともモック(API キー不要・サブスク枠も消費しない)
+npm run start:device                  # 実機用: シミュレータの代わりに QR を表示(到達先は Tailscale > LAN、whitelist 自動同期)
+npm run netinfo                       # LAN / Tailscale IP と whitelist の状態を表示
 
 # 個別に動かす場合
 npm run server                        # ターミナル 1: プロキシ :8787
@@ -53,8 +55,8 @@ npm run qr                            # 実機: QR を出してスマホの Even
 
 シミュレータ起動時に macOS が `error messaging the mach port for IMKCFRunLoopWakeUpReliable` と出すことがあるが、これは OS の日本語入力(IME)まわりのログで無害。アプリの異常は `[scouter]` 行かグラス画面の `ERR` / `!` 行で判断する。
 
-- スマホ側 UI の「解析サーバ URL」は既定で `http://<ページを配信しているホスト>:8787`(= ラップトップの LAN IP)。
-- 実機で使う時は `app.json` の `whitelist` をその URL に合わせる(`npm run server` の起動ログに出る)。変えたら再 pack。
+- スマホ側 UI の「解析サーバ URL」は、開発中(Vite 配信)は既定で同一オリジンの `/api`(Vite が :8787 に中継。whitelist / CORS 不要)。`.ehpk` 版では PC の URL(`http://<Tailscale IP>:8787` 等)を設定画面で入れ、`app.json` の whitelist にも入れて pack する。
+- `start:device` が LAN / Tailscale の IP を whitelist に自動追加する(`npm run whitelist` でも可)。
 - HMR が実機で切れるなら `VITE_HMR_HOST=<LAN IP> npm run dev`。
 
 ### 必要なもの

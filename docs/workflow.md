@@ -97,6 +97,35 @@ curl -X POST http://127.0.0.1:9898/api/input -H 'Content-Type: application/json'
 
 ## 3. 実機テスト(QR サイドロード)
 
+### scouter の実機チェックリスト(POC。公開不要)
+
+事前(1 回だけ):
+1. Even App を **2.2.10 以上**に更新(SDK 0.0.15 の要件。メニュー機能は 2.2.9+)。グラスのファームも更新。
+2. https://hub.evenrealities.com/login にログイン → Even App を完全終了 → 再起動 → Even Hub タブに「Scan QR」。
+3. 外でも使うなら Tailscale: `brew install --cask tailscale-app`(要 sudo)→ Mac と iPhone で同じアカウントにログイン。
+4. `apps/scouter` で `npm run whisper:setup`(済)。
+
+毎回:
+```bash
+cd apps/scouter
+npm run start:device      # プロキシ + whisper + Vite を起動し、到達先(Tailscale > LAN)を決めて QR を表示。whitelist も自動同期
+```
+スマホの Even Hub → Scan QR。グラスに「タップでマイク開始」が出たらタップ。
+
+通信の仕組み(開発中):
+- アプリ本体は PC の Vite(:5180)から配信。解析プロキシは **同一オリジンの `/api`** 経由で Vite が :8787 に中継するので、`app.json` の whitelist や CORS には依存しない。
+- Wi-Fi が変わって LAN IP が変わっても `start:device` が拾い直す。Tailscale 接続中は 100.x.y.z を優先(固定)。
+- macOS のファイアウォールが node の受信を聞いてきたら許可。
+
+実機でだけ確認できること(シミュレータでは不可):
+| 項目 | 見方 |
+|---|---|
+| 日本語の描画(かな・句読点・罫線) | ゲージ行と提案行が欠けずに出るか |
+| `speakerRole` の精度 | 「会話」パネルの `自:` / `相:` が正しいか。全部 `？:` ならスマホマイク経由か旧アプリ |
+| 終了ダイアログ(ダブルタップ)→「いいえ」で復帰 | 復帰後にゲージ・顔が再描画されるか。顔画像が出なければテキスト顔に自動切替 |
+| 画像(顔)の送信 | 起動直後に顔が出るか。`face image failed` がログに出たら画像チャンネルの問題 |
+| バックグラウンド復帰 | ロック → 解除後にマイクが再開するか(Android は状態消失あり) |
+
 ```bash
 npm run dev
 evenhub qr --url "http://$(ipconfig getifaddr en0):5173"   # en0 が空なら en1

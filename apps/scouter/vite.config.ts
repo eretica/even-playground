@@ -8,6 +8,14 @@ export default defineConfig({
     host: true,
     port: 5180,
     ...(hmrHost ? { hmr: { host: hmrHost } } : {}),
+    // 開発中はプロキシを同一オリジン(/api)で叩く → app.json の whitelist や CORS に依存しない
+    proxy: {
+      '/api': {
+        target: process.env.PROXY_TARGET || 'http://127.0.0.1:8787',
+        changeOrigin: true,
+        rewrite: path => path.replace(/^\/api/, ''),
+      },
+    },
   },
   build: { target: 'esnext' },
 })

@@ -6,6 +6,9 @@
   "scripts": {
     "start": "node scripts/dev-all.mjs",
     "start:mock": "node scripts/dev-all.mjs --mock",
+    "start:device": "node scripts/dev-all.mjs --no-sim",
+    "netinfo": "node scripts/netinfo.mjs",
+    "whitelist": "node scripts/netinfo.mjs --sync",
     "dev": "vite",
     "server": "node --watch-path=server --watch-path=shared --env-file-if-exists=server/.env --import tsx server/index.ts",
     "server:mock": "STT_PROVIDER=mock LLM_PROVIDER=mock node --env-file-if-exists=server/.env --import tsx server/index.ts",

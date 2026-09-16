@@ -56,10 +56,12 @@ ui.mountUi(
   state.settings,
 )
 
-// プロキシ URL の既定値: ページを配信しているホスト(= ラップトップの LAN IP)の :8787
+// プロキシ URL の既定値:
+//   開発(Vite 配信)中は同一オリジンの /api(Vite が :8787 へ中継。whitelist / CORS 不要)
+//   パッケージ版(.ehpk)は配信ホストが Even Hub になるので、設定画面で PC の URL を入れる
 if (!state.settings.proxyUrl) {
   const envUrl = import.meta.env.VITE_PROXY_URL as string | undefined
-  state.settings.proxyUrl = envUrl || `${location.protocol}//${location.hostname}:8787`
+  state.settings.proxyUrl = envUrl || (import.meta.env.DEV ? `${location.origin}/api` : `${location.protocol}//${location.hostname}:8787`)
 }
 
 const audio = new AudioPipeline({

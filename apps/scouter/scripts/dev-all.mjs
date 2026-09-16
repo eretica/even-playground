@@ -3,6 +3,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { ensureWhitelist, pickHost } from './netinfo.mjs'
 
 const PORT = 5180
 // シミュレータに渡す追加オプション。例: npm run start -- --automation-port 9898
@@ -13,9 +14,12 @@ const SIM_ARGS = []
 const MOCK = rawArgs.includes('--mock')
 // --no-sim: 実機で遊ぶとき(プロキシ + whisper + Vite だけ起動し、QR を表示)
 const NO_SIM = rawArgs.includes('--no-sim')
+// --host <ip>: 実機からの到達先を手動指定(既定: Tailscale IP > LAN IP)
+const HOST_OVERRIDE = (() => { const i = rawArgs.indexOf('--host'); return i >= 0 ? rawArgs[i + 1] : '' })()
 for (let i = 0; i < rawArgs.length; i++) {
   const a = rawArgs[i]
   if (a === '--mock' || a === '--no-sim') continue
+  if (a === '--host') { i++; continue }
   if (a.startsWith('--')) {
     SIM_ARGS.push(a)
     if (!a.includes('=') && rawArgs[i + 1] && !rawArgs[i + 1].startsWith('--')) SIM_ARGS.push(rawArgs[++i])
@@ -95,8 +99,10 @@ if (await waitFor('http://127.0.0.1:8787/health', 500)) {
       // VAD モデルがあれば発話区間だけを認識させる(無音・雑音での幻聴を大幅に減らす)
       const vadModel = join('server', 'models', 'ggml-silero-v5.1.2.bin')
       const vadArgs = existsSync(vadModel) ? ['--vad', '--vad-model', vadModel] : []
+      // WHISPER_PROMPT: 用語集(誤認識しやすい固有名詞を「、」区切りで)。初期プロンプトとして毎回渡す
+      const promptArgs = envOf('WHISPER_PROMPT') ? ['--prompt', envOf('WHISPER_PROMPT'), '--carry-initial-prompt'] : []
       run('whisper', 'whisper-server', ['-m', WHISPER_MODEL, '-l', envOf('STT_LANGUAGE') || 'ja', '--host', '127.0.0.1', '--port', String(WHISPER_PORT),
-        '--inference-path', '/v1/audio/transcriptions', '--no-timestamps', ...vadArgs], 34)
+        '--inference-path', '/v1/audio/transcriptions', '--no-timestamps', ...vadArgs, ...promptArgs], 34)
     }
   }
   run('server', 'node', ['--watch-path=server', '--watch-path=shared', '--env-file-if-exists=server/.env', '--import', 'tsx', 'server/index.ts'], 36,
@@ -107,20 +113,23 @@ let ok = await waitFor(`http://127.0.0.1:${PORT}/`, 500)
 if (ok) {
   process.stdout.write(`\x1b[35m[vite]\x1b[0m :${PORT} は既に起動済みなのでそちらを使います\n`)
 } else {
-  run('vite', 'npx', ['vite', '--port', String(PORT), '--strictPort'], 35)
+  const host = NO_SIM ? pickHost(HOST_OVERRIDE) : { ip: '', via: 'none' }
+  run('vite', 'npx', ['vite', '--port', String(PORT), '--strictPort'], 35, host.ip ? { VITE_HMR_HOST: host.ip } : {})
   ok = await waitFor(`http://127.0.0.1:${PORT}/`, 15000)
 }
 if (!ok) {
   process.stdout.write(`\x1b[31m[start]\x1b[0m Vite が :${PORT} で起動しませんでした。ポートが使用中か確認してください: lsof -nP -iTCP:${PORT}\n`)
 } else if (NO_SIM) {
-  // 実機用: QR を出す(スマホの Even Hub → Scan QR)
-  const ip = (await import('node:child_process')).spawnSync('ipconfig', ['getifaddr', 'en0'], { encoding: 'utf8' }).stdout.trim()
-    || (await import('node:child_process')).spawnSync('ipconfig', ['getifaddr', 'en1'], { encoding: 'utf8' }).stdout.trim()
+  // 実機用: 到達先(Tailscale > LAN)を決めて whitelist を同期し、QR を出す(スマホの Even Hub → Scan QR)
+  const { ip, via } = pickHost(HOST_OVERRIDE)
   if (ip) {
-    process.stdout.write(`\x1b[32m[qr]\x1b[0m http://${ip}:${PORT} をスマホで読み込みます(app.json の whitelist は http://${ip}:8787)\n`)
+    const origin = `http://${ip}:8787`
+    if (ensureWhitelist(origin)) process.stdout.write(`\x1b[32m[qr]\x1b[0m app.json の whitelist に ${origin} を追加しました\n`)
+    process.stdout.write(`\x1b[32m[qr]\x1b[0m 経路: ${via}  アプリ: http://${ip}:${PORT}  プロキシ: ${origin}\n`)
+    if (via === 'lan') process.stdout.write('\x1b[32m[qr]\x1b[0m (Tailscale 未接続。同じ Wi-Fi にいる必要があります。Tailscale.app でログインすると自動でそちらを使います)\n')
     run('qr', 'evenhub', ['qr', '--url', `http://${ip}:${PORT}`], 32)
   } else {
-    process.stdout.write('\x1b[31m[qr]\x1b[0m LAN IP が取れませんでした。npm run qr を手で実行してください\n')
+    process.stdout.write('\x1b[31m[qr]\x1b[0m 到達先 IP が取れませんでした。--host <ip> で指定してください\n')
   }
 } else {
   run('sim', 'evenhub-simulator', ['-g', `http://127.0.0.1:${PORT}`, ...SIM_ARGS], 32)
