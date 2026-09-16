@@ -11,9 +11,11 @@ const rawArgs = process.argv.slice(2)
 const SIM_ARGS = []
 // --mock: STT も LLM もモックで起動(API キー不要、Claude のサブスク枠も消費しない)
 const MOCK = rawArgs.includes('--mock')
+// --no-sim: 実機で遊ぶとき(プロキシ + whisper + Vite だけ起動し、QR を表示)
+const NO_SIM = rawArgs.includes('--no-sim')
 for (let i = 0; i < rawArgs.length; i++) {
   const a = rawArgs[i]
-  if (a === '--mock') continue
+  if (a === '--mock' || a === '--no-sim') continue
   if (a.startsWith('--')) {
     SIM_ARGS.push(a)
     if (!a.includes('=') && rawArgs[i + 1] && !rawArgs[i + 1].startsWith('--')) SIM_ARGS.push(rawArgs[++i])
@@ -75,7 +77,7 @@ const hasWhisperBin = (await import('node:child_process')).spawnSync('which', ['
 const useWhisper = !MOCK && (sttWant === 'whisper' || (sttWant === 'auto' && hasWhisperBin && existsSync(WHISPER_MODEL)))
 
 // 前回のシミュレータが残っていると入力が二重処理されるので先に落とす
-spawn('pkill', ['-f', 'evenhub-simulator'])
+if (!NO_SIM) spawn('pkill', ['-f', 'evenhub-simulator'])
 await new Promise(r => setTimeout(r, 500))
 
 // 既に別ターミナルでプロキシが動いていればそれを使う
@@ -97,7 +99,7 @@ if (await waitFor('http://127.0.0.1:8787/health', 500)) {
         '--inference-path', '/v1/audio/transcriptions', '--no-timestamps', ...vadArgs], 34)
     }
   }
-  run('server', 'node', ['--env-file-if-exists=server/.env', '--import', 'tsx', 'server/index.ts'], 36,
+  run('server', 'node', ['--watch-path=server', '--watch-path=shared', '--env-file-if-exists=server/.env', '--import', 'tsx', 'server/index.ts'], 36,
     MOCK ? { STT_PROVIDER: 'mock', LLM_PROVIDER: 'mock' } : useWhisper ? { STT_PROVIDER: 'whisper' } : {})
 }
 // Vite も同様: 既に :5180 で動いていればそれを使う
@@ -110,6 +112,16 @@ if (ok) {
 }
 if (!ok) {
   process.stdout.write(`\x1b[31m[start]\x1b[0m Vite が :${PORT} で起動しませんでした。ポートが使用中か確認してください: lsof -nP -iTCP:${PORT}\n`)
+} else if (NO_SIM) {
+  // 実機用: QR を出す(スマホの Even Hub → Scan QR)
+  const ip = (await import('node:child_process')).spawnSync('ipconfig', ['getifaddr', 'en0'], { encoding: 'utf8' }).stdout.trim()
+    || (await import('node:child_process')).spawnSync('ipconfig', ['getifaddr', 'en1'], { encoding: 'utf8' }).stdout.trim()
+  if (ip) {
+    process.stdout.write(`\x1b[32m[qr]\x1b[0m http://${ip}:${PORT} をスマホで読み込みます(app.json の whitelist は http://${ip}:8787)\n`)
+    run('qr', 'evenhub', ['qr', '--url', `http://${ip}:${PORT}`], 32)
+  } else {
+    process.stdout.write('\x1b[31m[qr]\x1b[0m LAN IP が取れませんでした。npm run qr を手で実行してください\n')
+  }
 } else {
   run('sim', 'evenhub-simulator', ['-g', `http://127.0.0.1:${PORT}`, ...SIM_ARGS], 32)
 }

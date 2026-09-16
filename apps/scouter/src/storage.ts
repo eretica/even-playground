@@ -12,6 +12,10 @@ export interface Settings {
   /** 何もしゃべらない状態が続いたら自動でマイクを止める(分、0 で無効) */
   idleMinutes: number
   debugOverlay: boolean
+  /** 解析の最短間隔(秒)。大きいほどサブスク枠を節約 */
+  analyzeIntervalSec: number
+  /** 音声をまとめて送る長さ(秒)。長いほど文の途中切れが減り、反応は遅くなる */
+  chunkSec: number
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -21,6 +25,8 @@ export const DEFAULT_SETTINGS: Settings = {
   unknownAs: 'unknown',
   idleMinutes: 10,
   debugOverlay: false,
+  analyzeIntervalSec: 4,
+  chunkSec: 4,
 }
 
 const KEY = 'scouter.settings.v1'

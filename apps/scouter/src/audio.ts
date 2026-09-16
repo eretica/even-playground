@@ -53,6 +53,8 @@ export class AudioPipeline {
       proxyUrl: () => string
       proxyToken: () => string
       lang: () => string
+      /** チャンク長(ms)。未指定なら CHUNK_MS */
+      chunkMs?: () => number
       onTranscript: (r: TranscriptResult) => void
       onError: (msg: string) => void
       onActivity?: () => void
@@ -108,7 +110,8 @@ export class AudioPipeline {
 
     const bufMs = (buf.bytes / BYTES_PER_SEC) * 1000
     const voicedMs = (buf.voicedBytes / BYTES_PER_SEC) * 1000
-    if (bufMs >= CHUNK_MS || (voicedMs >= MIN_MS && buf.silentTailMs >= SILENCE_GAP_MS)) {
+    const chunkMs = Math.max(1000, this.opts.chunkMs?.() ?? CHUNK_MS)
+    if (bufMs >= chunkMs || (voicedMs >= MIN_MS && buf.silentTailMs >= SILENCE_GAP_MS)) {
       this.flush(speaker, false)
     }
   }

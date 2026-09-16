@@ -34,6 +34,8 @@ let els: {
   lang: HTMLSelectElement
   unknownAs: HTMLSelectElement
   idle: HTMLInputElement
+  analyzeInterval: HTMLInputElement
+  chunkSec: HTMLInputElement
   debug: HTMLInputElement
   manualText: HTMLInputElement
   manualSpeaker: HTMLSelectElement
@@ -95,6 +97,8 @@ export function mountUi(h: UiHandlers, settings: Settings) {
           <option value="other">相手として扱う</option>
           <option value="self">自分として扱う</option>
         </select></label>
+        <label>解析の最短間隔(秒。大きいほど Claude の枠を節約)<input id="analyzeInterval" type="number" min="2" max="60" /></label>
+        <label>音声をまとめて送る長さ(秒。長いほど文の途中切れが減る)<input id="chunkSec" type="number" min="1" max="10" /></label>
         <label>無音で自動停止(分、0 で無効)<input id="idle" type="number" min="0" max="120" /></label>
         <label class="inline"><input id="debug" type="checkbox" /> グラスにデバッグ行を表示</label>
         <button id="save">保存</button>
@@ -120,6 +124,7 @@ export function mountUi(h: UiHandlers, settings: Settings) {
     transcript: q('#transcript'), log: q('#log'), micBtn: q<HTMLButtonElement>('#mic'),
     proxy: q<HTMLInputElement>('#proxy'), proxyToken: q<HTMLInputElement>('#proxyToken'), lang: q<HTMLSelectElement>('#lang'),
     unknownAs: q<HTMLSelectElement>('#unknownAs'), idle: q<HTMLInputElement>('#idle'),
+    analyzeInterval: q<HTMLInputElement>('#analyzeInterval'), chunkSec: q<HTMLInputElement>('#chunkSec'),
     debug: q<HTMLInputElement>('#debug'), manualText: q<HTMLInputElement>('#manualText'),
     manualSpeaker: q<HTMLSelectElement>('#manualSpeaker'),
   }
@@ -146,6 +151,8 @@ function fillSettings(s: Settings) {
   els.lang.value = s.lang
   els.unknownAs.value = s.unknownAs
   els.idle.value = String(s.idleMinutes)
+  els.analyzeInterval.value = String(s.analyzeIntervalSec)
+  els.chunkSec.value = String(s.chunkSec)
   els.debug.checked = s.debugOverlay
 }
 
@@ -157,6 +164,8 @@ function readSettings(base: Settings): Settings {
     lang: els.lang.value,
     unknownAs: els.unknownAs.value as Settings['unknownAs'],
     idleMinutes: Math.max(0, Number(els.idle.value) || 0),
+    analyzeIntervalSec: Math.min(60, Math.max(2, Number(els.analyzeInterval.value) || 4)),
+    chunkSec: Math.min(10, Math.max(1, Number(els.chunkSec.value) || 4)),
     debugOverlay: els.debug.checked,
   }
 }

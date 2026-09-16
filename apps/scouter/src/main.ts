@@ -66,6 +66,7 @@ const audio = new AudioPipeline({
   proxyUrl: () => state.settings.proxyUrl,
   proxyToken: () => state.settings.proxyToken,
   lang: () => state.settings.lang,
+  chunkMs: () => state.settings.chunkSec * 1000,
   onTranscript: r => addTurn(r.speaker, r.text, r.ms),
   onError: msg => {
     state.lastError = msg
@@ -190,13 +191,13 @@ function addTurn(speaker: Speaker, text: string, ms?: number) {
 }
 
 const ANALYZE_DEBOUNCE_MS = 1500
-const ANALYZE_MIN_INTERVAL_MS = 4000
 const CONTEXT_TURNS = 30
 
 function scheduleAnalyze() {
   window.clearTimeout(state.analyzeTimer)
   const since = Date.now() - state.lastAnalyzeAt
-  const delay = Math.max(ANALYZE_DEBOUNCE_MS, ANALYZE_MIN_INTERVAL_MS - since)
+  const minInterval = Math.max(2, state.settings.analyzeIntervalSec) * 1000
+  const delay = Math.max(ANALYZE_DEBOUNCE_MS, minInterval - since)
   state.analyzeTimer = window.setTimeout(() => void analyze(), delay)
 }
 
