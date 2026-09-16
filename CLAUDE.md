@@ -5,6 +5,7 @@ Even G2 スマートグラス向け Even Hub アプリ(プラグイン)の実験
 
 | ドキュメント | 内容 |
 |---|---|
+| `docs/setup-device.md` | **実機で遊ぶための全手順**(グラス初期化、開発者モード、Tailscale、起動、操作、調整、困ったとき) |
 | `docs/workflow.md` | 環境構築〜実機テスト〜パッケージまでの手順、トラブルシュート |
 | `docs/pitfalls.md` | 引っかかりやすい所(実体験ベースのコミュニティ知見込み) |
 | `docs/sdk-cheatsheet.md` | SDK API・制約値・イベント表の要約 |

@@ -36,6 +36,8 @@ STT だけはキーが要る(OpenAI か Gemini)か、ローカルの whisper 互
 
 ## 動かし方
 
+実機での手順は `docs/setup-device.md` にまとめてある(グラス初期化 → 開発者モード → Tailscale → 起動 → 操作 → 調整)。
+
 ```bash
 cd apps/scouter
 npm install
