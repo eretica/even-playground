@@ -31,6 +31,31 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const KEY = 'scouter.settings.v1'
 
+/** サーバ URL を正規化する。スキーム無しは http を補い、末尾の / を落とす。不正なら '' */
+export function normalizeProxyUrl(raw: string): string {
+  let v = raw.trim()
+  if (!v) return ''
+  if (!/^[a-z]+:\/\//i.test(v)) v = `http://${v}`
+  v = v.replace(/\/+$/, '')
+  try {
+    const u = new URL(v)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return ''
+    return v
+  } catch {
+    return ''
+  }
+}
+
+/** ベース URL とパスを結合(`new URL(path, base)` は base の /api を捨ててしまうので使わない) */
+export function joinUrl(base: string, path: string): string {
+  return `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`
+}
+
+/** HTTP ヘッダーに入れられる文字だけ残す(全角や改行が混ざると fetch が例外を投げる) */
+export function sanitizeToken(raw: string): string {
+  return raw.replace(/[^\x21-\x7e]/g, '')
+}
+
 let bridgeRef: EvenAppBridge | null = null
 export function bindStorage(bridge: EvenAppBridge | null) {
   bridgeRef = bridge
@@ -45,7 +70,10 @@ export async function loadSettings(): Promise<Settings> {
   }
   if (!raw) return { ...DEFAULT_SETTINGS }
   try {
-    return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) }
+    const s = { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) }
+    s.proxyUrl = normalizeProxyUrl(s.proxyUrl)
+    s.proxyToken = sanitizeToken(s.proxyToken ?? '')
+    return s
   } catch {
     return { ...DEFAULT_SETTINGS }
   }

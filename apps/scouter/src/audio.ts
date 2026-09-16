@@ -1,6 +1,7 @@
 // マイク PCM(s16le / 16kHz / mono)を話者ごとにバッファし、一定量たまったらプロキシへ POST する。
 // WebSocket は iOS WKWebView で失敗報告があるため使わない。Blob body の fetch のみ。
 import type { Speaker, TranscribeResponse } from '../shared/types'
+import { joinUrl, sanitizeToken } from './storage'
 
 const SAMPLE_RATE = 16000
 const BYTES_PER_SEC = SAMPLE_RATE * 2
@@ -136,10 +137,8 @@ export class AudioPipeline {
     this.stats.sent++
     this.stats.inFlight++
     try {
-      const u = new URL('/transcribe', base)
-      u.searchParams.set('speaker', speaker)
-      u.searchParams.set('lang', this.opts.lang())
-      const res = await fetch(u.toString(), {
+      const qs = new URLSearchParams({ speaker, lang: this.opts.lang() })
+      const res = await fetch(`${joinUrl(base, 'transcribe')}?${qs}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/octet-stream', ...authHeader(this.opts.proxyToken()) },
         body: new Blob([pcm.buffer as ArrayBuffer], { type: 'application/octet-stream' }),
@@ -167,7 +166,8 @@ export class AudioPipeline {
 }
 
 export function authHeader(token: string): Record<string, string> {
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  const t = sanitizeToken(token)
+  return t ? { Authorization: `Bearer ${t}` } : {}
 }
 
 function rmsOf(pcm: Uint8Array): number {

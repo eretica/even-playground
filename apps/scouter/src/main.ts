@@ -7,7 +7,7 @@ import { EMPTY_ANALYSIS } from '../shared/types'
 import { AudioPipeline, authHeader } from './audio'
 import { connectGlasses, MENU, PANEL_INNER_W, PANEL_MAX_LINES, type Glasses, type GlassesView } from './glasses'
 import { FACE_LABEL } from './face'
-import { bindStorage, loadSettings, saveSettings, type Settings } from './storage'
+import { bindStorage, joinUrl, loadSettings, normalizeProxyUrl, saveSettings, type Settings } from './storage'
 import { bipolarGauge, clampLines, fitLine, fmtDuration, gauge, signed, wrapPx } from './text'
 import * as ui from './ui'
 
@@ -59,10 +59,11 @@ ui.mountUi(
 // プロキシ URL の既定値:
 //   開発(Vite 配信)中は同一オリジンの /api(Vite が :8787 へ中継。whitelist / CORS 不要)
 //   パッケージ版(.ehpk)は配信ホストが Even Hub になるので、設定画面で PC の URL を入れる
-if (!state.settings.proxyUrl) {
+function defaultProxyUrl(): string {
   const envUrl = import.meta.env.VITE_PROXY_URL as string | undefined
-  state.settings.proxyUrl = envUrl || (import.meta.env.DEV ? `${location.origin}/api` : `${location.protocol}//${location.hostname}:8787`)
+  return envUrl || (import.meta.env.DEV ? `${location.origin}/api` : `${location.protocol}//${location.hostname}:8787`)
 }
+if (!state.settings.proxyUrl) state.settings.proxyUrl = defaultProxyUrl()
 
 const audio = new AudioPipeline({
   proxyUrl: () => state.settings.proxyUrl,
@@ -175,6 +176,9 @@ async function requestExit() {
 }
 
 async function applySettings(s: Settings) {
+  const normalized = normalizeProxyUrl(s.proxyUrl)
+  if (s.proxyUrl && !normalized) ui.log(`サーバ URL が不正なので既定に戻します: ${s.proxyUrl}`)
+  s.proxyUrl = normalized || defaultProxyUrl()
   state.settings = s
   await saveSettings(s)
   ui.log('settings saved')
@@ -219,7 +223,7 @@ async function analyze() {
       lang: state.settings.lang,
       sessionKey: state.sessionKey,
     }
-    const res = await fetch(new URL('/analyze', base).toString(), {
+    const res = await fetch(joinUrl(base, 'analyze'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader(state.settings.proxyToken) },
       body: JSON.stringify(body),
@@ -259,7 +263,7 @@ async function checkProxy(verbose: boolean) {
   const base = state.settings.proxyUrl
   if (!base) { state.proxyMode = 'error'; state.proxyLabel = 'URL未設定'; return }
   try {
-    const res = await fetch(new URL('/health', base).toString(), { method: 'GET' })
+    const res = await fetch(joinUrl(base, 'health'), { method: 'GET' })
     const json = (await res.json()) as HealthResponse
     const mock = json.stt === 'mock' || json.llm === 'mock'
     state.proxyMode = mock ? 'mock' : 'live'

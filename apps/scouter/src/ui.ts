@@ -159,7 +159,7 @@ function fillSettings(s: Settings) {
 function readSettings(base: Settings): Settings {
   return {
     ...base,
-    proxyUrl: els.proxy.value.trim().replace(/\/+$/, ''),
+    proxyUrl: els.proxy.value.trim(),
     proxyToken: els.proxyToken.value.trim(),
     lang: els.lang.value,
     unknownAs: els.unknownAs.value as Settings['unknownAs'],
