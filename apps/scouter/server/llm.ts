@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import type { Analysis, AnalyzeRequest } from '../shared/types'
 import type { Config } from './config'
+import { hybridProvider, jevAvailable, jevProvider } from './jev'
 import { mockAnalyze } from './mock'
 import { buildUserPrompt, SYSTEM_PROMPT } from './prompt'
 import { ANALYSIS_JSON_SCHEMA, AnalysisSchema, normalizeAnalysis } from './schema'
@@ -109,15 +110,39 @@ const mockProvider: LlmProvider = {
 }
 
 /**
- * @param extra ランタイム固有のプロバイダ(Node の claude-code 等)。auto の時は extra を最優先で使う。
+ * 今の設定で使えるプロバイダを全部並べる(/analyze?provider= の切り替えと比較スクリプト用)。
+ * TYPESAFE_API_KEY があれば `jev`(判定のみ)と、各 LLM との合成 `jev+<name>` も加わる。
+ * @param extra ランタイム固有のプロバイダ(Node の claude-code 等)
+ */
+export function availableLlms(cfg: Config, extra: Record<string, LlmProvider> = {}): Record<string, LlmProvider> {
+  const out: Record<string, LlmProvider> = { ...extra }
+  if (cfg.anthropicHasCreds) out.anthropic = anthropicProvider(cfg)
+  if (cfg.openaiKey) out.openai = openaiProvider(cfg)
+  if (cfg.geminiKey) out.gemini = geminiProvider(cfg)
+  out.mock = mockProvider
+  if (jevAvailable(cfg)) {
+    for (const llm of Object.values({ ...out })) out[`jev+${llm.name}`] = hybridProvider(cfg, llm)
+    out.jev = jevProvider(cfg)
+  }
+  return out
+}
+
+/**
+ * LLM_PROVIDER に従って 1 つ選ぶ。auto は extra(claude-code)→ anthropic → openai → gemini → mock。
+ * jev 系を明示してキーが無い時は起動時に落とす(黙って別プロバイダにしない)。
  */
 export function pickLlm(cfg: Config, extra: Record<string, LlmProvider> = {}): LlmProvider {
   const want = cfg.llmProvider
-  if (extra[want]) return extra[want]
+  const all = availableLlms(cfg, extra)
+  if (all[want]) return all[want]
+  if (want.startsWith('jev')) {
+    if (!jevAvailable(cfg)) throw new Error(`LLM_PROVIDER=${want} には TYPESAFE_API_KEY が必要です(server/.env)`)
+    throw new Error(`LLM_PROVIDER=${want}: 合成相手が見つかりません。使えるのは ${Object.keys(all).join(', ')}`)
+  }
+  // 明示指定でキーが無い場合は SDK 側の既定解決に任せる(従来動作)
   if (want === 'anthropic') return anthropicProvider(cfg)
   if (want === 'openai') return openaiProvider(cfg)
   if (want === 'gemini') return geminiProvider(cfg)
-  if (want === 'mock') return mockProvider
   const first = Object.values(extra)[0]
   if (first) return first
   if (cfg.anthropicHasCreds) return anthropicProvider(cfg)

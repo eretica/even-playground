@@ -56,7 +56,7 @@ export type AnalyzeResponse =
   | { ok: false; error: string }
 
 export type TranscribeResponse =
-  | { ok: true; text: string; provider: string; ms: number }
+  | { ok: true; text: string; provider: string; ms: number; /** ゲート(STT_GATE=jev)の判定メモ。捨てた時は text が空になる */ note?: string }
   | { ok: false; error: string }
 
 export interface HealthResponse {
@@ -66,6 +66,10 @@ export interface HealthResponse {
   version: string
   /** サーバが Bearer トークンを要求するか */
   auth?: boolean
+  /** /analyze?provider= で選べるプロバイダ名(サーバ側で使える組み合わせ)。比較用 */
+  llmOptions?: string[]
+  /** /transcribe 後のゲート(off | jev) */
+  sttGate?: string
 }
 
 export const EMPTY_ANALYSIS: Analysis = {

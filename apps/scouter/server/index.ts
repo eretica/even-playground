@@ -18,7 +18,14 @@ const cfg = configFromEnv(process.env, {
 // Claude Code がログイン済みならサブスク枠の `claude -p` を LLM に使う(auto 時の最優先)
 const claudeVersion = cfg.llmProvider === 'mock' ? null : claudeCodeAvailable(cfg.claudeBin)
 const extraLlm: Record<string, LlmProvider> = claudeVersion ? { 'claude-code': claudeCodeProvider(cfg, console.log) } : {}
-const app = createApp(cfg, { extraLlm })
+let app: ReturnType<typeof createApp>
+try {
+  app = createApp(cfg, { extraLlm })
+} catch (e) {
+  // 設定ミス(LLM_PROVIDER=jev でキー無し等)はスタックトレースではなく 1 行で出して止める
+  console.error(`scouter proxy: 起動できません → ${(e as Error).message}`)
+  process.exit(1)
+}
 
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -49,6 +56,7 @@ server.listen(PORT, '0.0.0.0', () => {
     .filter(n => n && n.family === 'IPv4' && !n.internal)
     .map(n => n!.address)
   console.log(`scouter proxy (node)  stt=${app.stt.name}  llm=${app.llm.name}${app.llm.name === 'claude-code' ? ` (${cfg.claudeCodeModel}/${cfg.claudeCodeEffort}, session=${cfg.claudeCodeSession ? 'on' : 'off'}, Claude Code ${claudeVersion})` : ''}  auth=${cfg.sharedSecret ? 'on' : 'off'}`)
+  console.log(`  llm options (/analyze?provider=): ${Object.keys(app.llms).join(', ')}   stt gate: ${app.gate ? app.gate.name : 'off'}`)
   console.log(`listening on http://0.0.0.0:${PORT}`)
   for (const ip of ips) console.log(`  → http://${ip}:${PORT}  (app.json の whitelist / スマホ側設定に使う)`)
   if (app.stt.name === 'mock' || app.llm.name === 'mock') console.log('  ※ mock モード: server/.env に API キーを設定すると本物になります')

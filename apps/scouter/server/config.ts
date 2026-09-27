@@ -31,6 +31,17 @@ export interface Config {
   promptTurns: number
   /** 設定されていれば /transcribe と /analyze に Bearer 認証を要求する */
   sharedSecret?: string
+  /** Jev(TypeSafe AI の判定専用モデル)。LLM_PROVIDER=jev | jev+<llm>、STT_GATE=jev で使う */
+  typesafeKey?: string
+  /** 省略時は SDK 既定(https://api.typesafe.ai)。Vercel AI Gateway 等の互換エンドポイントに差し替え可 */
+  typesafeBaseUrl?: string
+  jevModel: string
+  /** Jev に渡す直近発話数(state が大きいと精度が落ちるので LLM より少なめ) */
+  jevTurns: number
+  /** /transcribe 後のゲート。off = 従来(正規表現の幻聴リストのみ) / jev = Noul で「実発話か」を判定し閾値未満を捨てる */
+  sttGate: 'off' | 'jev'
+  /** Jev ゲートの「実発話」確率の閾値(0-1)。これ未満の文字起こしは捨てる */
+  jevGateThreshold: number
 }
 
 export type EnvLike = Record<string, string | undefined>
@@ -62,5 +73,11 @@ export function configFromEnv(env: EnvLike, opts: { anthropicHasCreds?: boolean 
     sessionMaxMinutes: Number(s('SESSION_MAX_MINUTES', '30')) || 30,
     promptTurns: Number(s('PROMPT_TURNS', '10')) || 10,
     sharedSecret: s('SHARED_SECRET') || undefined,
+    typesafeKey: s('TYPESAFE_API_KEY') || undefined,
+    typesafeBaseUrl: s('TYPESAFE_BASE_URL') || undefined,
+    jevModel: s('JEV_MODEL', 'jev-latest'),
+    jevTurns: Number(s('JEV_TURNS', '6')) || 6,
+    sttGate: s('STT_GATE', 'off').toLowerCase() === 'jev' ? 'jev' : 'off',
+    jevGateThreshold: Math.min(1, Math.max(0, Number(s('JEV_GATE_THRESHOLD', '0.5')) || 0.5)),
   }
 }

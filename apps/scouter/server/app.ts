@@ -1,11 +1,12 @@
 // ルーティング本体。Web 標準の Request/Response だけで書き、Node(index.ts)と Workers(worker.ts)から呼ぶ。
 //   GET  /health                       → 使用中のプロバイダ(認証不要)
-//   POST /transcribe?speaker=&lang=    → body: PCM s16le 16kHz mono → { text }
-//   POST /analyze                      → body: AnalyzeRequest(JSON) → { analysis }
+//   POST /transcribe?speaker=&lang=    → body: PCM s16le 16kHz mono → { text }(STT_GATE=jev なら幻聴判定を通す)
+//   POST /analyze[?provider=]          → body: AnalyzeRequest(JSON) → { analysis }(provider で従来 LLM / jev / jev+LLM を都度切り替え可)
 // SHARED_SECRET が設定されていれば POST 系は `Authorization: Bearer <secret>` 必須。
 import type { AnalyzeRequest, AnalyzeResponse, HealthResponse, TranscribeResponse } from '../shared/types'
 import type { Config } from './config'
-import { pickLlm, type LlmProvider } from './llm'
+import { jevGate, type JevGate } from './jev'
+import { availableLlms, pickLlm, type LlmProvider } from './llm'
 import { pickStt, rmsOf, type SttProvider } from './stt'
 
 export const VERSION = '0.2.0'
@@ -28,6 +29,9 @@ function json(status: number, body: unknown): Response {
 export interface App {
   stt: SttProvider
   llm: LlmProvider
+  /** /analyze?provider= で選べる全プロバイダ */
+  llms: Record<string, LlmProvider>
+  gate: JevGate | null
   cfg: Config
   handle(req: Request): Promise<Response>
 }
@@ -35,7 +39,10 @@ export interface App {
 export function createApp(cfg: Config, opts: { log?: (line: string) => void; extraLlm?: Record<string, LlmProvider> } = {}): App {
   const log = opts.log ?? console.log
   const stt = pickStt(cfg)
+  const llms = availableLlms(cfg, opts.extraLlm ?? {})
   const llm = pickLlm(cfg, opts.extraLlm ?? {})
+  llms[llm.name] = llm
+  const gate = cfg.sttGate === 'jev' ? jevGate(cfg) : null
 
   function authorized(req: Request): boolean {
     if (!cfg.sharedSecret) return true
@@ -53,7 +60,10 @@ export function createApp(cfg: Config, opts: { log?: (line: string) => void; ext
       if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
 
       if (req.method === 'GET' && url.pathname === '/health') {
-        const body: HealthResponse = { ok: true, stt: stt.name, llm: llm.name, version: VERSION, auth: Boolean(cfg.sharedSecret) }
+        const body: HealthResponse = {
+          ok: true, stt: stt.name, llm: llm.name, version: VERSION, auth: Boolean(cfg.sharedSecret),
+          llmOptions: Object.keys(llms), sttGate: gate ? gate.name : 'off',
+        }
         done(200)
         return json(200, body)
       }
@@ -73,17 +83,34 @@ export function createApp(cfg: Config, opts: { log?: (line: string) => void; ext
           done(200, `skip (${pcm.byteLength}B rms=${Math.round(rms)})`)
           return json(200, body)
         }
-        const text = await stt.transcribe(pcm, lang)
-        const body: TranscribeResponse = { ok: true, text, provider: stt.name, ms: Date.now() - t0 }
-        done(200, `${speaker} ${pcm.byteLength}B rms=${Math.round(rms)} → "${text.slice(0, 60)}"`)
+        let text = await stt.transcribe(pcm, lang)
+        let note: string | undefined
+        if (gate && text) {
+          // ゲート自体の失敗は文字起こしを止めない(通して、理由をクライアントのログに出す)
+          try {
+            const g = await gate.check(text, speaker)
+            note = `${gate.name} p=${g.p.toFixed(2)} ${g.keep ? 'keep' : 'DROP'} (${g.ms}ms)`
+            if (!g.keep) { note += ` "${text.slice(0, 40)}"`; text = '' }
+          } catch (e) {
+            note = `${gate.name} error: ${(e as Error).message.slice(0, 120)} → 通過`
+          }
+        }
+        const body: TranscribeResponse = { ok: true, text, provider: stt.name, ms: Date.now() - t0, ...(note ? { note } : {}) }
+        done(200, `${speaker} ${pcm.byteLength}B rms=${Math.round(rms)} → "${text.slice(0, 60)}"${note ? ` [${note}]` : ''}`)
         return json(200, body)
       }
 
       if (req.method === 'POST' && url.pathname === '/analyze') {
         const reqBody = (await req.json()) as AnalyzeRequest
         if (!Array.isArray(reqBody.turns)) throw new Error('turns must be an array')
-        const analysis = await llm.analyze(reqBody)
-        const body: AnalyzeResponse = { ok: true, analysis, provider: llm.name, ms: Date.now() - t0 }
+        const want = url.searchParams.get('provider')
+        const use = want ? llms[want] : llm
+        if (!use) {
+          done(400, `unknown provider ${want}`)
+          return json(400, { ok: false, error: `unknown provider "${want}". options: ${Object.keys(llms).join(', ')}` })
+        }
+        const analysis = await use.analyze(reqBody)
+        const body: AnalyzeResponse = { ok: true, analysis, provider: use.name, ms: Date.now() - t0 }
         done(200, `${reqBody.turns.length} turns → face=${analysis.face} score=${analysis.score}`)
         return json(200, body)
       }
@@ -99,5 +126,5 @@ export function createApp(cfg: Config, opts: { log?: (line: string) => void; ext
     }
   }
 
-  return { stt, llm, cfg, handle }
+  return { stt, llm, llms, gate, cfg, handle }
 }

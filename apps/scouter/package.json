@@ -22,12 +22,14 @@
     "whisper:setup": "node scripts/whisper-setup.mjs",
     "worker:dev": "wrangler dev --port 8788",
     "worker:deploy": "wrangler deploy",
-    "worker:tail": "wrangler tail"
+    "worker:tail": "wrangler tail",
+    "compare": "node --env-file-if-exists=server/.env --import tsx scripts/compare-llm.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",
     "@evenrealities/even_hub_sdk": "^0.0.15",
     "@evenrealities/pretext": "^0.1.4",
+    "@typesafe-ai/sdk": "^0.6.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {

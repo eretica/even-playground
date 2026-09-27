@@ -71,6 +71,7 @@ const audio = new AudioPipeline({
   lang: () => state.settings.lang,
   chunkMs: () => state.settings.chunkSec * 1000,
   onTranscript: r => addTurn(r.speaker, r.text, r.ms),
+  onNote: msg => ui.log(msg),
   onError: msg => {
     state.lastError = msg
     ui.log(msg)

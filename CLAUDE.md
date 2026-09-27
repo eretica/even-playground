@@ -114,6 +114,11 @@ bridge.onEvenHubEvent(ev => {
 - **STT はローカル whisper.cpp が本線**(`brew install whisper-cpp` 済み、モデルは `apps/scouter/server/models/`、gitignore)。`npm run start` が `whisper-server --inference-path /v1/audio/transcriptions --vad` を自動起動し、プロキシは OpenAI 互換として叩く。1 チャンク 0.25 秒、日本語精度は良好。無音・雑音の幻聴は VAD + `dropHallucination` で抑止。
 - Gemini API の無料枠は `gemini-3.6-flash` で **1 日 20 リクエスト**(実測)。このアプリには使えない。Google AI Pro は API 枠に効かず、Gemini CLI は起動 12 秒 + Workspace アカウントで `GOOGLE_CLOUD_PROJECT` 必須のため STT には不向き。
 - サーバ本体は `server/app.ts`(Web 標準 Request/Response)。Node(`index.ts`)と Workers(`worker.ts`)は薄いアダプタ。プロバイダを足すときは `stt.ts` / `llm.ts` に `Config` を受け取る関数で追加する。
+- **Jev(TypeSafe AI の判定専用モデル)は設定で切り替え**: `LLM_PROVIDER=jev`(判定のみ・文章欄空)/ `jev+claude-code`(Jev が喜怒哀楽・face・mood・スコア、LLM が助言・要約・memory。並列に呼んで合成)/ 従来のまま。実装は `server/jev.ts`、キーは `TYPESAFE_API_KEY`(waitlist か Vercel AI Gateway)。
+  - 起動中は `POST /analyze?provider=<name>` で都度切り替え(`/health` の `llmOptions` に一覧)。**並べて比較は `npm run compare -- --providers jev,claude-code -v`**(同じ会話を previous 付きで順に流し、face 一致率・score 差・所要時間を出す。`--file talk.txt` で実会話)。
+  - `STT_GATE=jev` で文字起こし後に Noul「実発話か」を通し、`JEV_GATE_THRESHOLD` 未満を捨てる(正規表現の幻聴リストに追加で効く)。判定メモは `/transcribe` 応答の `note` → スマホのログに出る。ゲート自体の失敗は通過させてログに出す。
+  - Jev は文章を生成しない(音声も不可)。mood は候補ラベル(`MOODS`)からの選択。state は直近 `JEV_TURNS`(既定 6)発話 + memory に絞る(大きい state で精度が落ちる公式注記)。score は 5 段階の期待値 ×25 で 0-100 化。
+  - キー無しで配線を試すニセ API: `node scripts/fake-jev.mjs` を立てて `TYPESAFE_API_KEY=fake TYPESAFE_BASE_URL=http://127.0.0.1:8799`。
 - 表示更新コスト: `textContainerUpgrade` ≒ 83ms、`rebuildPageContainer` ≒ 165ms(コンテナ数に依らず一定)、画像 ≒ 104ms + サイズ。**3 つ以上のコンテナを同時に変えるなら rebuild の方が速い**。
 
 ## コーディング規約

@@ -58,6 +58,8 @@ export class AudioPipeline {
       chunkMs?: () => number
       onTranscript: (r: TranscriptResult) => void
       onError: (msg: string) => void
+      /** エラーではない付帯情報(STT ゲートの判定メモ等)。ログに出すだけ */
+      onNote?: (msg: string) => void
       onActivity?: () => void
     },
   ) {}
@@ -154,6 +156,7 @@ export class AudioPipeline {
       }
       this.stats.ok++
       const text = json.text.trim()
+      if (json.note) this.opts.onNote?.(`transcribe: ${json.note}`)
       if (text) this.opts.onTranscript({ speaker, text, ms: Date.now() - t0 })
     } catch (e) {
       this.stats.failed++
