@@ -23,7 +23,9 @@
     "worker:dev": "wrangler dev --port 8788",
     "worker:deploy": "wrangler deploy",
     "worker:tail": "wrangler tail",
-    "compare": "node --env-file-if-exists=server/.env --import tsx scripts/compare-llm.ts"
+    "compare": "node --env-file-if-exists=server/.env --import tsx scripts/compare-llm.ts",
+    "bench": "node --env-file-if-exists=server/.env --import tsx scripts/jev-bench.ts",
+    "gate-eval": "node --env-file-if-exists=server/.env --import tsx scripts/gate-eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",

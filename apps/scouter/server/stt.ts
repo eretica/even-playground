@@ -54,6 +54,12 @@ const HALLUCINATIONS = [
   /^\[.*\]$/,
   /^\(.*\)$/,
   /^♪+$/,
+  // 以下は gate-eval(scripts/gate-eval.ts)で漏れていた型
+  /ご視聴ありがとう/,                 // 文中に混ざる(「お疲れ様でした。ご視聴ありがとうございました」)
+  /^次の動画.*$/,
+  /^提供$/,
+  /^[。、．・…\s]+$/,                  // 句読点だけ
+  /^(.{1,3})\1{3,}$/,                 // 同じ 1〜3 文字の 4 回以上の繰り返し(はいはいはいはい / んんんんんん)。「はいはい、なるほど」は残る
 ]
 export function dropHallucination(text: string): string {
   const t = text.trim()

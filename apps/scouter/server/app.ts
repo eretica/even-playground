@@ -36,7 +36,14 @@ export interface App {
   handle(req: Request): Promise<Response>
 }
 
-export function createApp(cfg: Config, opts: { log?: (line: string) => void; extraLlm?: Record<string, LlmProvider> } = {}): App {
+export interface AppOptions {
+  log?: (line: string) => void
+  extraLlm?: Record<string, LlmProvider>
+  /** /analyze が呼ばれるたびに受け取ったリクエストを渡す(会話の記録・再生用)。失敗しても解析は止めない */
+  onAnalyze?: (req: AnalyzeRequest) => void
+}
+
+export function createApp(cfg: Config, opts: AppOptions = {}): App {
   const log = opts.log ?? console.log
   const stt = pickStt(cfg)
   const llms = availableLlms(cfg, opts.extraLlm ?? {})
@@ -109,6 +116,7 @@ export function createApp(cfg: Config, opts: { log?: (line: string) => void; ext
           done(400, `unknown provider ${want}`)
           return json(400, { ok: false, error: `unknown provider "${want}". options: ${Object.keys(llms).join(', ')}` })
         }
+        try { opts.onAnalyze?.(reqBody) } catch (e) { log(`onAnalyze failed: ${(e as Error).message}`) }
         const analysis = await use.analyze(reqBody)
         const body: AnalyzeResponse = { ok: true, analysis, provider: use.name, ms: Date.now() - t0 }
         done(200, `${reqBody.turns.length} turns → face=${analysis.face} score=${analysis.score}`)

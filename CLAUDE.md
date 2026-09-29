@@ -119,6 +119,9 @@ bridge.onEvenHubEvent(ev => {
   - `STT_GATE=jev` で文字起こし後に Noul「実発話か」を通し、`JEV_GATE_THRESHOLD` 未満を捨てる(正規表現の幻聴リストに追加で効く)。判定メモは `/transcribe` 応答の `note` → スマホのログに出る。ゲート自体の失敗は通過させてログに出す。
   - Jev は文章を生成しない(音声も不可)。mood は候補ラベル(`MOODS`)からの選択。state は直近 `JEV_TURNS`(既定 6)発話 + memory に絞る(大きい state で精度が落ちる公式注記)。score は 5 段階の期待値 ×25 で 0-100 化。
   - キー無しで配線を試すニセ API: `node scripts/fake-jev.mjs` を立てて `TYPESAFE_API_KEY=fake TYPESAFE_BASE_URL=http://127.0.0.1:8799`。
+  - **キーが来たら回す順**: `npm run bench`(p50/p95・トークン・コスト・並列)→ `npm run gate-eval`(幻聴 15 / 実発話 20 の内蔵データで regex と Jev の除去率・誤除去率、閾値スイープ)→ `npm run compare -- --file server/recordings/<日付>-<key>.txt --step 1 -v`(実会話で claude-code と並べる)。
+  - `RECORD_TURNS=1` でサーバ起動すると `/analyze` に届いた発話を `server/recordings/`(gitignore)に追記し、そのまま `--file` で再生できる。
+  - ベースライン(2026-09-29、sonnet/low、セッション継続、この Mac): claude-code の解析は **1 回 6.6〜10.9 秒(平均 9.1 秒)**。Jev は公称 100〜500ms + 東京からの往復で 0.5〜0.7 秒見込み。
 - 表示更新コスト: `textContainerUpgrade` ≒ 83ms、`rebuildPageContainer` ≒ 165ms(コンテナ数に依らず一定)、画像 ≒ 104ms + サイズ。**3 つ以上のコンテナを同時に変えるなら rebuild の方が速い**。
 
 ## コーディング規約
