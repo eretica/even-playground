@@ -121,7 +121,9 @@ bridge.onEvenHubEvent(ev => {
   - キー無しで配線を試すニセ API: `node scripts/fake-jev.mjs` を立てて `TYPESAFE_API_KEY=fake TYPESAFE_BASE_URL=http://127.0.0.1:8799`。
   - **キーが来たら回す順**: `npm run bench`(p50/p95・トークン・コスト・並列)→ `npm run gate-eval`(幻聴 15 / 実発話 20 の内蔵データで regex と Jev の除去率・誤除去率、閾値スイープ)→ `npm run compare -- --file server/recordings/<日付>-<key>.txt --step 1 -v`(実会話で claude-code と並べる)。
   - `RECORD_TURNS=1` でサーバ起動すると `/analyze` に届いた発話を `server/recordings/`(gitignore)に追記し、そのまま `--file` で再生できる。
-  - ベースライン(2026-09-29、sonnet/low、セッション継続、この Mac): claude-code の解析は **1 回 6.6〜10.9 秒(平均 9.1 秒)**。Jev は公称 100〜500ms + 東京からの往復で 0.5〜0.7 秒見込み。
+  - **実測(2026-09-30、本物のキー)**: Jev 判定 10 問 = **平均 0.2 秒(p95 0.3 秒)、約 2,000 tok、1 時間の会話で 0.02 ドル**。claude-code(sonnet/low、セッション継続)は **平均 9.5 秒**。内蔵 12 発話の会話で face は claude-code と 6/6 一致、score 平均差 8。
+  - state には前回の face/mood を**渡さない**、相手の最新発話を `latest_other` として別出しして「最重視」と書く。これ無しだと「お疲れ」が固着し、話題が変わっても引きずった(5/6 → 6/6 に改善)。
+  - ゲート: 閾値 0.6 で幻聴 13/15 除去・実発話の誤除去 0/20(0.8 だと実発話を落とし始める)。regex は 15/15 だが「ありがとうございました」を丸ごと落とすので、両者は補完関係。1 件 0.18 秒。
 - 表示更新コスト: `textContainerUpgrade` ≒ 83ms、`rebuildPageContainer` ≒ 165ms(コンテナ数に依らず一定)、画像 ≒ 104ms + サイズ。**3 つ以上のコンテナを同時に変えるなら rebuild の方が速い**。
 
 ## コーディング規約

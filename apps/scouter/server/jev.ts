@@ -82,13 +82,14 @@ function buildQuestions() {
   }
 }
 
-/** Jev に渡す state。大きすぎると精度が落ちるので直近 N 発話 + memory + 前回の要約だけ */
+/** Jev に渡す state。大きすぎると精度が落ちるので直近 N 発話 + memory だけ。前回の face/mood は渡さない(Jev は字義通りに読むので前回に引きずられ「お疲れ」が固着した) */
 export function buildJevState(req: AnalyzeRequest, turns: number) {
   return {
-    task: '装着者(self)が相手(other)と対面で会話している。音声の文字起こしなので誤認識が混ざる(不自然な単語は文脈で読む)。判定対象は相手(other)の「現在の」状態。self の発話は相手の反応を読む文脈としてだけ使う。unknown は話者不明。',
-    memory: req.previous?.memory || null,
-    previous: req.previous ? { face: req.previous.face, mood: req.previous.mood, score: req.previous.score } : null,
+    task: '装着者(self)が相手(other)と対面で会話している。音声の文字起こしなので誤認識が混ざる(不自然な単語は文脈で読む)。判定対象は相手(other)の「今この瞬間」の状態で、latest_other(相手の最新発話)を最重視し、conversation はその文脈として使う。話題が変わったら古い発話の感情は引き継がない。self の発話は相手の反応を読む文脈としてだけ使う。unknown は話者不明。',
+    latest_other: [...req.turns].reverse().find(t => t.speaker === 'other')?.text ?? null,
     conversation: req.turns.slice(-turns).map(t => `${t.speaker}: ${t.text}`).join('\n') || '(まだ発話なし)',
+    memory: req.previous?.memory || null,
+    previous_score: req.previous?.score ?? null,
   }
 }
 
