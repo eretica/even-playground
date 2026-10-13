@@ -1,4 +1,5 @@
 import type { Analysis, AnalyzeRequest, TranscriptTurn } from '../shared/types'
+import type { LlmMode } from './schema'
 
 /** 固定のシステムプロンプト(キャッシュ効率のため内容を変えない) */
 export const SYSTEM_PROMPT = `あなたは会話の「スカウター」です。装着者(self)が誰かと対面で会話しており、あなたはその会話の文字起こしだけを見て、
@@ -58,3 +59,41 @@ export function buildUserPrompt(req: AnalyzeRequest, turns: TranscriptTurn[] = r
 export function buildDeltaPrompt(newTurns: TranscriptTurn[]): string {
   return `## 新しい発話\n${formatTurns(newTurns)}\n\nここまでの流れを踏まえて、相手の状態と次の一言を更新した JSON で出力してください(memory も更新)。`
 }
+
+/**
+ * 文章モード: 数値判定(感情・顔・スコア)は Jev が 0.2 秒で出すので、LLM には文章だけを頼む。
+ * 出力が短くなる分速く、Jev の判定(judgement)を前提に助言を書かせるので表示と矛盾しない。
+ */
+export const SYSTEM_PROMPT_TEXT = SYSTEM_PROMPT
+  .replace(/## 出力\(JSON\)[\s\S]*?## 出力の仕方\(重要\)/, `## 出力(JSON)
+- 相手の感情・表情・スコアは別の判定システムが既に出している(judgement として渡す)。あなたはそれを前提に文章だけを書く。数値は出力しない。
+- digDeeper: 相手が触れたが掘り下げられていない話題、感情が動いた瞬間、気になる言い回しなど「今ここを深掘りすべき」点。最大 2 件、各 全角 20 文字以内。
+- suggestions: 装着者が次に言うと良い具体的な一言。そのまま口に出せる自然な口語で、最大 2 件、各 全角 22 文字以内。1 件目は質問か共感、2 件目は別方向(話題転換など)。judgement の mood に合った言い方にする。
+- summary: 会話の今の状況を全角 30 文字以内で 1 文。
+- memory: これまでの会話の要点(話題、相手の事情、感情の推移、未回収の伏線)を全角 100 文字以内で更新して保持。次回はこれだけを頼りに古い発話を思い出すので、固有名詞と出来事を優先し、修飾語は削る。
+- 出力は短いほど良い(表示は小さな画面、応答速度が最優先)。
+
+## 出力の仕方(重要)`)
+  .replace('ツールの引数には上記フィールド(emotions, face, mood, score, scores, digDeeper, suggestions, summary, memory)を', 'ツールの引数には上記フィールド(digDeeper, suggestions, summary, memory)を')
+
+export const systemPromptFor = (mode: LlmMode) => (mode === 'text' ? SYSTEM_PROMPT_TEXT : SYSTEM_PROMPT)
+
+function formatJudgement(prev: Analysis | null | undefined): string {
+  if (!prev || !prev.score) return ''
+  return `\n\n## judgement(判定システムの現在の推定)\n${JSON.stringify({ face: prev.face, mood: prev.mood, score: prev.score, emotions: prev.emotions, scores: prev.scores })}`
+}
+
+/** 文章モードの初回プロンプト: 会話履歴 + judgement + memory */
+export function buildUserPromptText(req: AnalyzeRequest, turns: TranscriptTurn[] = req.turns): string {
+  const lang = req.lang ?? 'ja'
+  const mem = req.previous?.memory ? `\n\n## memory(これまでの要点)\n${req.previous.memory}` : ''
+  return `lang: ${lang}\n\n## 会話(古い順、最新が最後)\n${formatTurns(turns)}${formatJudgement(req.previous)}${mem}\n\n最新の発話と judgement を踏まえて、次の一言・深掘り・要約・memory を JSON で出力してください。`
+}
+
+/** 文章モードのセッション継続用: 新しい発話 + 現在の judgement */
+export function buildDeltaPromptText(newTurns: TranscriptTurn[], previous: Analysis | null | undefined): string {
+  return `## 新しい発話\n${formatTurns(newTurns)}${formatJudgement(previous)}\n\nここまでの流れと judgement を踏まえて、次の一言・深掘り・要約・memory を更新した JSON で出力してください。`
+}
+
+export const userPromptFor = (mode: LlmMode, req: AnalyzeRequest, turns: TranscriptTurn[]) => (mode === 'text' ? buildUserPromptText(req, turns) : buildUserPrompt(req, turns))
+export const deltaPromptFor = (mode: LlmMode, newTurns: TranscriptTurn[], previous: Analysis | null | undefined) => (mode === 'text' ? buildDeltaPromptText(newTurns, previous) : buildDeltaPrompt(newTurns))

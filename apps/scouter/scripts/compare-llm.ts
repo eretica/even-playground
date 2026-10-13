@@ -12,7 +12,8 @@ import { join } from 'node:path'
 import { claudeCodeAvailable, claudeCodeProvider } from '../server/claude-code'
 import { configFromEnv } from '../server/config'
 import type { JevLlmProvider } from '../server/jev'
-import { availableLlms, type LlmProvider } from '../server/llm'
+import type { LlmProvider } from '../server/llm'
+import { availableLlms, type ExtraLlms } from '../server/llm'
 import type { Analysis, AnalyzeRequest, Speaker, TranscriptTurn } from '../shared/types'
 
 const argv = process.argv.slice(2)
@@ -70,7 +71,9 @@ function fmt(name: string, ms: number, a: Analysis): string {
 
 async function main() {
   const cfg = configFromEnv(process.env, { anthropicHasCreds: existsSync(join(homedir(), '.config', 'anthropic')) })
-  const extra: Record<string, LlmProvider> = claudeCodeAvailable(cfg.claudeBin) ? { 'claude-code': claudeCodeProvider(cfg, () => undefined) } : {}
+  const extra: ExtraLlms = claudeCodeAvailable(cfg.claudeBin)
+    ? { full: { 'claude-code': claudeCodeProvider(cfg, () => undefined, 'full') }, text: { 'claude-code': claudeCodeProvider(cfg, () => undefined, 'text') } }
+    : {}
   const all = availableLlms(cfg, extra)
   const names = (opt('--providers') ?? Object.keys(all).filter(n => n !== 'mock' && n !== 'jev+mock').join(',')).split(',').map(s => s.trim()).filter(Boolean)
   const missing = names.filter(n => !all[n])
@@ -109,7 +112,7 @@ async function main() {
         if (verbose && p.last) {
           const j = p.last
           const top = (k: string) => Object.entries(j.probabilities[k] ?? {}).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([l, v]) => `${l}:${Math.round(v * 100)}%`).join(' ')
-          console.log(`    jev ${j.ms}ms in=${j.usage.input_tokens}tok  face[${top('face')}]  mood[${top('mood')}]  enjoy[${top('enjoy')}]`)
+          console.log(`    jev ${j.ms}ms ${j.model} in=${j.usage.input_tokens}tok  face[${top('face')}] conf ${j.confidence.face}  mood[${top('mood')}] conf ${j.confidence.mood}${j.held.length ? `  held=${j.held.join(',')}` : ''}`)
         }
       } catch (e) {
         stats[name].errors++

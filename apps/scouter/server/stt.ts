@@ -67,6 +67,8 @@ export function dropHallucination(text: string): string {
 }
 
 function openai(cfg: Config, name = 'openai'): SttProvider {
+  // 直前の文字起こしの末尾。次のチャンクの初期プロンプトに繋ぎ、チャンク境界で切れた文の続きや固有名詞を文脈で拾わせる
+  let lastTail = ''
   return {
     name,
     async transcribe(pcm, lang) {
@@ -75,6 +77,9 @@ function openai(cfg: Config, name = 'openai'): SttProvider {
       form.append('model', cfg.openaiSttModel)
       form.append('language', lang)
       form.append('response_format', 'json')
+      // prompt = 用語集(WHISPER_PROMPT)+ 直前の末尾。whisper-server はリクエストの prompt が CLI の --prompt より優先されるので両方ここで渡す
+      const prompt = [cfg.whisperPrompt, cfg.whisperContext ? lastTail : ''].filter(Boolean).join('。')
+      if (prompt) form.append('prompt', prompt)
       const res = await fetch(`${cfg.openaiSttBaseUrl}/audio/transcriptions`, {
         method: 'POST',
         headers: cfg.openaiKey ? { Authorization: `Bearer ${cfg.openaiKey}` } : {},
@@ -82,7 +87,11 @@ function openai(cfg: Config, name = 'openai'): SttProvider {
       })
       if (!res.ok) throw new Error(`${name} stt ${res.status}: ${(await res.text()).slice(0, 200)}`)
       const json = (await res.json()) as { text?: string }
-      return dropHallucination(json.text ?? '')
+      let text = dropHallucination(json.text ?? '')
+      // プロンプト条件付けの副作用(直前の末尾をそのまま繰り返す)を捨てる
+      if (text && lastTail && text === lastTail) text = ''
+      if (text) lastTail = [...text].slice(-60).join('')
+      return text
     },
   }
 }

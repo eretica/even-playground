@@ -114,16 +114,15 @@ bridge.onEvenHubEvent(ev => {
 - **STT はローカル whisper.cpp が本線**(`brew install whisper-cpp` 済み、モデルは `apps/scouter/server/models/`、gitignore)。`npm run start` が `whisper-server --inference-path /v1/audio/transcriptions --vad` を自動起動し、プロキシは OpenAI 互換として叩く。1 チャンク 0.25 秒、日本語精度は良好。無音・雑音の幻聴は VAD + `dropHallucination` で抑止。
 - Gemini API の無料枠は `gemini-3.6-flash` で **1 日 20 リクエスト**(実測)。このアプリには使えない。Google AI Pro は API 枠に効かず、Gemini CLI は起動 12 秒 + Workspace アカウントで `GOOGLE_CLOUD_PROJECT` 必須のため STT には不向き。
 - サーバ本体は `server/app.ts`(Web 標準 Request/Response)。Node(`index.ts`)と Workers(`worker.ts`)は薄いアダプタ。プロバイダを足すときは `stt.ts` / `llm.ts` に `Config` を受け取る関数で追加する。
-- **Jev(TypeSafe AI の判定専用モデル)は設定で切り替え**: `LLM_PROVIDER=jev`(判定のみ・文章欄空)/ `jev+claude-code`(Jev が喜怒哀楽・face・mood・スコア、LLM が助言・要約・memory。並列に呼んで合成)/ 従来のまま。実装は `server/jev.ts`、キーは `TYPESAFE_API_KEY`(waitlist か Vercel AI Gateway)。
-  - 起動中は `POST /analyze?provider=<name>` で都度切り替え(`/health` の `llmOptions` に一覧)。**並べて比較は `npm run compare -- --providers jev,claude-code -v`**(同じ会話を previous 付きで順に流し、face 一致率・score 差・所要時間を出す。`--file talk.txt` で実会話)。
-  - `STT_GATE=jev` で文字起こし後に Noul「実発話か」を通し、`JEV_GATE_THRESHOLD` 未満を捨てる(正規表現の幻聴リストに追加で効く)。判定メモは `/transcribe` 応答の `note` → スマホのログに出る。ゲート自体の失敗は通過させてログに出す。
-  - Jev は文章を生成しない(音声も不可)。mood は候補ラベル(`MOODS`)からの選択。state は直近 `JEV_TURNS`(既定 6)発話 + memory に絞る(大きい state で精度が落ちる公式注記)。score は 5 段階の期待値 ×25 で 0-100 化。
+- **Jev(TypeSafe AI の判定専用モデル)は設定で切り替え**: `LLM_PROVIDER=jev`(判定のみ・文章欄空)/ `jev+claude-code`(Jev が喜怒哀楽・face・mood・スコア、LLM が助言・要約・memory)/ 従来のまま。実装は `server/jev.ts`、キーは `TYPESAFE_API_KEY`(waitlist)。
+  - **解析は二段表示**(サーバに Jev があるとき自動): `POST /analyze?stage=fast`(Jev の数値だけ、0.2〜0.5 秒。発話のたび)→ `stage=text`(LLM の文章だけ。face が変わる / score が 15 以上動く / 30 秒経過 のときだけ、`analyzeIntervalSec` 以上の間隔)。クライアントは `/health` の `twoStage` で切り替える(`src/main.ts` の analyzeFast / maybeAnalyzeText)。LLM の文章モードは `SYSTEM_PROMPT_TEXT` + `TextSchema`(数値を出さない。judgement = Jev の判定を前提に書く)。
+  - Jev の質問設計(公式の弱点一覧に従う): 各段階・選択肢は**観察できる状況**で書く(曖昧な形容詞禁止)、選択肢は `what / not_for` で隣接候補と境界を切る、state は直近 `JEV_TURNS`(既定 6)発話 + memory + `latest_other`(前回の face/mood は渡さない。渡すと固着する)、総合 score は Jev に聞かず `compositeScore` でコード計算、confidence < `JEV_MIN_CONFIDENCE`(0.5)の face / mood は前回値を保持(ヒステリシス)。
+  - **評価セット `eval/*.txt`** + `npm run eval`: `=` 行で期待 face / mood を書く。2026-10-13 時点 6 会話 21 チェックポイントで face 21/21・mood 21/21、平均 0.3 秒、応答 model `jev-1.13.0`(API で指定できる名前は jev-latest / jev-preview のみで版固定不可。model 名が変わったら eval を回し直す)。実会話は `RECORD_TURNS=1` → `server/recordings/` → eval にコピーして `=` を足す。
+  - 起動中は `POST /analyze?provider=<name>` で都度切り替え(`/health` の `llmOptions` に一覧)。並べて比較は `npm run compare -- --providers jev,claude-code -v`。性能は `npm run bench`、ゲート精度は `npm run gate-eval`。
+  - `STT_GATE=jev` で文字起こし後に Noul「実発話か」を通し、`JEV_GATE_THRESHOLD`(0.6)未満を捨てる(正規表現の幻聴リストに追加で効く。両者は補完関係)。判定メモは `/transcribe` 応答の `note` → スマホのログに出る。ゲート自体の失敗は通過させてログに出す。
+  - **whisper の文脈**: `WHISPER_CONTEXT=1`(既定)で直前の文字起こし末尾を次チャンクの `prompt` に繋ぐ(用語集 `WHISPER_PROMPT` と合わせてリクエストで渡す。whisper-server はリクエストの prompt が CLI の --prompt より優先)。4 秒境界で切れた「写真を撮るのが楽しくて」が、無しだと「コーディング」と幻聴、有りだと正しく続いた。
+  - **実測(2026-10)**: Jev 判定 9 問 = 0.2〜0.5 秒、約 3,000 tok、1 時間の会話で 0.03 ドル。claude-code(sonnet/low、セッション継続)は文章モードでも **8〜10 秒**(CLI 起動 1.4 秒 + 7K トークンのシステムプロンプト + 2〜3 ターン。モデルを haiku にすると 20〜40 秒と逆に遅い、opus 12 秒)。速くするなら Anthropic API 直叩き(2〜3 秒見込み、サブスク枠外)か Agent SDK の常駐セッション。
   - キー無しで配線を試すニセ API: `node scripts/fake-jev.mjs` を立てて `TYPESAFE_API_KEY=fake TYPESAFE_BASE_URL=http://127.0.0.1:8799`。
-  - **キーが来たら回す順**: `npm run bench`(p50/p95・トークン・コスト・並列)→ `npm run gate-eval`(幻聴 15 / 実発話 20 の内蔵データで regex と Jev の除去率・誤除去率、閾値スイープ)→ `npm run compare -- --file server/recordings/<日付>-<key>.txt --step 1 -v`(実会話で claude-code と並べる)。
-  - `RECORD_TURNS=1` でサーバ起動すると `/analyze` に届いた発話を `server/recordings/`(gitignore)に追記し、そのまま `--file` で再生できる。
-  - **実測(2026-09-30、本物のキー)**: Jev 判定 10 問 = **平均 0.2 秒(p95 0.3 秒)、約 2,000 tok、1 時間の会話で 0.02 ドル**。claude-code(sonnet/low、セッション継続)は **平均 9.5 秒**。内蔵 12 発話の会話で face は claude-code と 6/6 一致、score 平均差 8。
-  - state には前回の face/mood を**渡さない**、相手の最新発話を `latest_other` として別出しして「最重視」と書く。これ無しだと「お疲れ」が固着し、話題が変わっても引きずった(5/6 → 6/6 に改善)。
-  - ゲート: 閾値 0.6 で幻聴 13/15 除去・実発話の誤除去 0/20(0.8 だと実発話を落とし始める)。regex は 15/15 だが「ありがとうございました」を丸ごと落とすので、両者は補完関係。1 件 0.18 秒。
 - 表示更新コスト: `textContainerUpgrade` ≒ 83ms、`rebuildPageContainer` ≒ 165ms(コンテナ数に依らず一定)、画像 ≒ 104ms + サイズ。**3 つ以上のコンテナを同時に変えるなら rebuild の方が速い**。
 
 ## コーディング規約

@@ -1,12 +1,13 @@
 // ルーティング本体。Web 標準の Request/Response だけで書き、Node(index.ts)と Workers(worker.ts)から呼ぶ。
 //   GET  /health                       → 使用中のプロバイダ(認証不要)
 //   POST /transcribe?speaker=&lang=    → body: PCM s16le 16kHz mono → { text }(STT_GATE=jev なら幻聴判定を通す)
-//   POST /analyze[?provider=]          → body: AnalyzeRequest(JSON) → { analysis }(provider で従来 LLM / jev / jev+LLM を都度切り替え可)
+//   POST /analyze[?provider=][&stage=] → body: AnalyzeRequest(JSON) → { analysis }
+//        provider: 従来 LLM / jev / jev+LLM を都度切り替え。stage: fast(Jev の数値だけ 0.2 秒)/ text(LLM の文章だけ)/ full(既定)
 // SHARED_SECRET が設定されていれば POST 系は `Authorization: Bearer <secret>` 必須。
-import type { AnalyzeRequest, AnalyzeResponse, HealthResponse, TranscribeResponse } from '../shared/types'
+import type { AnalyzeRequest, AnalyzeResponse, AnalyzeStage, HealthResponse, TranscribeResponse } from '../shared/types'
 import type { Config } from './config'
-import { jevGate, type JevGate } from './jev'
-import { availableLlms, pickLlm, type LlmProvider } from './llm'
+import { jevGate, type JevGate, type JevLlmProvider } from './jev'
+import { availableLlms, pickLlm, pickTextLlm, type ExtraLlms, type LlmProvider } from './llm'
 import { pickStt, rmsOf, type SttProvider } from './stt'
 
 export const VERSION = '0.2.0'
@@ -31,6 +32,8 @@ export interface App {
   llm: LlmProvider
   /** /analyze?provider= で選べる全プロバイダ */
   llms: Record<string, LlmProvider>
+  /** 二段表示の text ステージ(文章だけ)で使う LLM */
+  textLlm: LlmProvider
   gate: JevGate | null
   cfg: Config
   handle(req: Request): Promise<Response>
@@ -38,7 +41,7 @@ export interface App {
 
 export interface AppOptions {
   log?: (line: string) => void
-  extraLlm?: Record<string, LlmProvider>
+  extraLlm?: ExtraLlms
   /** /analyze が呼ばれるたびに受け取ったリクエストを渡す(会話の記録・再生用)。失敗しても解析は止めない */
   onAnalyze?: (req: AnalyzeRequest) => void
 }
@@ -49,7 +52,9 @@ export function createApp(cfg: Config, opts: AppOptions = {}): App {
   const llms = availableLlms(cfg, opts.extraLlm ?? {})
   const llm = pickLlm(cfg, opts.extraLlm ?? {})
   llms[llm.name] = llm
+  const textLlm = pickTextLlm(cfg, opts.extraLlm ?? {})
   const gate = cfg.sttGate === 'jev' ? jevGate(cfg) : null
+  const twoStage = Boolean(llms.jev)
 
   function authorized(req: Request): boolean {
     if (!cfg.sharedSecret) return true
@@ -69,7 +74,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): App {
       if (req.method === 'GET' && url.pathname === '/health') {
         const body: HealthResponse = {
           ok: true, stt: stt.name, llm: llm.name, version: VERSION, auth: Boolean(cfg.sharedSecret),
-          llmOptions: Object.keys(llms), sttGate: gate ? gate.name : 'off',
+          llmOptions: Object.keys(llms), sttGate: gate ? gate.name : 'off', twoStage, textLlm: textLlm.name,
         }
         done(200)
         return json(200, body)
@@ -111,15 +116,21 @@ export function createApp(cfg: Config, opts: AppOptions = {}): App {
         const reqBody = (await req.json()) as AnalyzeRequest
         if (!Array.isArray(reqBody.turns)) throw new Error('turns must be an array')
         const want = url.searchParams.get('provider')
-        const use = want ? llms[want] : llm
+        const stage = (url.searchParams.get('stage') || 'full') as AnalyzeStage
+        let use: LlmProvider | undefined
+        if (stage === 'fast') use = llms.jev
+        else if (stage === 'text') use = textLlm
+        else use = want ? llms[want] : llm
         if (!use) {
-          done(400, `unknown provider ${want}`)
-          return json(400, { ok: false, error: `unknown provider "${want}". options: ${Object.keys(llms).join(', ')}` })
+          const why = stage === 'fast' ? 'stage=fast には Jev(TYPESAFE_API_KEY)が必要です' : `unknown provider "${want}". options: ${Object.keys(llms).join(', ')}`
+          done(400, why)
+          return json(400, { ok: false, error: why })
         }
-        try { opts.onAnalyze?.(reqBody) } catch (e) { log(`onAnalyze failed: ${(e as Error).message}`) }
+        if (stage !== 'text') { try { opts.onAnalyze?.(reqBody) } catch (e) { log(`onAnalyze failed: ${(e as Error).message}`) } }
         const analysis = await use.analyze(reqBody)
-        const body: AnalyzeResponse = { ok: true, analysis, provider: use.name, ms: Date.now() - t0 }
-        done(200, `${reqBody.turns.length} turns → face=${analysis.face} score=${analysis.score}`)
+        const held = stage === 'fast' ? (use as JevLlmProvider).last?.held : undefined
+        const body: AnalyzeResponse = { ok: true, analysis, provider: use.name, ms: Date.now() - t0, stage, ...(held?.length ? { held } : {}) }
+        done(200, `${stage} ${reqBody.turns.length} turns → face=${analysis.face} ${analysis.mood} score=${analysis.score}${held?.length ? ` held=${held.join(',')}` : ''}${stage !== 'fast' ? ` "${analysis.suggestions[0] ?? ''}"` : ''}`)
         return json(200, body)
       }
 
@@ -134,5 +145,5 @@ export function createApp(cfg: Config, opts: AppOptions = {}): App {
     }
   }
 
-  return { stt, llm, llms, gate, cfg, handle }
+  return { stt, llm, llms, textLlm, gate, cfg, handle }
 }

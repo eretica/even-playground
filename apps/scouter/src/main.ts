@@ -2,6 +2,10 @@
 //
 // 流れ: G2 マイク PCM → AudioPipeline(話者別バッファ)→ POST /transcribe → turns[]
 //       → POST /analyze(デバウンス)→ Analysis → グラス(ゲージ / 顔 / パネル)+ スマホ UI
+// 解析は二段(サーバに Jev があるとき):
+//   fast = Jev の数値判定(0.2 秒)。発話のたびに呼び、ゲージと顔を即時更新
+//   text = LLM の文章(助言・深掘り・要約・memory、数秒)。face が変わる / score が大きく動く / 一定時間経過 のときだけ呼ぶ
+// Jev が無いサーバでは従来どおり full を 1 回呼ぶ
 import type { Analysis, AnalyzeRequest, AnalyzeResponse, FaceKind, HealthResponse, Speaker, TranscriptTurn } from '../shared/types'
 import { EMPTY_ANALYSIS } from '../shared/types'
 import { AudioPipeline, authHeader } from './audio'
@@ -31,6 +35,14 @@ const state = {
   analyzedUpTo: 0,
   lastAnalyzeAt: 0,
   analyzeTimer: 0 as number,
+  /** サーバが二段表示(fast=Jev → text=LLM)に対応しているか(/health で判定) */
+  twoStage: false,
+  /** text ステージ(LLM の文章)の状態: 前回呼んだ時の face / score / 時刻 */
+  textPending: false,
+  textUpTo: 0,
+  lastTextAt: 0,
+  lastTextFace: '' as string,
+  lastTextScore: 0,
   lastError: '',
   nextId: 1,
   /** サーバ側の会話セッション識別子(起動・リセットごとに更新) */
@@ -162,6 +174,10 @@ function resetSession() {
   state.analysis = { ...EMPTY_ANALYSIS }
   state.smooth = { joy: 0, anger: 0, sorrow: 0, pleasure: 0 }
   state.analyzedUpTo = 0
+  state.textUpTo = 0
+  state.lastTextAt = 0
+  state.lastTextFace = ''
+  state.lastTextScore = 0
   state.lastError = ''
   state.sessionKey = newSessionKey()
   ui.setAnalysis(state.analysis)
@@ -198,39 +214,59 @@ function addTurn(speaker: Speaker, text: string, ms?: number) {
 }
 
 const ANALYZE_DEBOUNCE_MS = 1500
+/** fast(Jev)は速いので短いデバウンスで発話に追従させる */
+const FAST_DEBOUNCE_MS = 400
 const CONTEXT_TURNS = 30
+/** text(LLM)を呼ぶ条件: face が変わった / score がこれ以上動いた / 前回からこれだけ経った */
+const TEXT_SCORE_DELTA = 15
+const TEXT_MAX_STALE_MS = 30_000
 
 function scheduleAnalyze() {
   window.clearTimeout(state.analyzeTimer)
+  if (state.twoStage) {
+    state.analyzeTimer = window.setTimeout(() => void analyzeFast(), FAST_DEBOUNCE_MS)
+    return
+  }
   const since = Date.now() - state.lastAnalyzeAt
   const minInterval = Math.max(2, state.settings.analyzeIntervalSec) * 1000
   const delay = Math.max(ANALYZE_DEBOUNCE_MS, minInterval - since)
   state.analyzeTimer = window.setTimeout(() => void analyze(), delay)
 }
 
+function analyzeBody(): AnalyzeRequest {
+  return {
+    turns: state.turns.slice(-CONTEXT_TURNS),
+    previous: state.analysis.score ? state.analysis : null,
+    lang: state.settings.lang,
+    sessionKey: state.sessionKey,
+  }
+}
+
+async function postAnalyze(stage: 'fast' | 'text' | 'full'): Promise<AnalyzeResponse & { ok: true }> {
+  const base = state.settings.proxyUrl
+  if (!base) throw new Error('サーバ URL 未設定')
+  const url = joinUrl(base, 'analyze') + (stage === 'full' ? '' : `?stage=${stage}`)
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeader(state.settings.proxyToken) },
+    body: JSON.stringify(analyzeBody()),
+  })
+  const json = (await res.json()) as AnalyzeResponse
+  if (!res.ok || !json.ok) throw new Error(json.ok ? `HTTP ${res.status}` : json.error)
+  return json
+}
+
+/** 従来の 1 段(サーバに Jev が無いとき) */
 async function analyze() {
   if (state.analyzing) { scheduleAnalyze(); return }
   const lastId = state.turns.at(-1)?.id ?? 0
   if (lastId <= state.analyzedUpTo) return
-  const base = state.settings.proxyUrl
-  if (!base) return
+  if (!state.settings.proxyUrl) return
   state.analyzing = true
   state.lastAnalyzeAt = Date.now()
   const t0 = Date.now()
   try {
-    const body: AnalyzeRequest = {
-      turns: state.turns.slice(-CONTEXT_TURNS),
-      previous: state.analysis.score ? state.analysis : null,
-      lang: state.settings.lang,
-      sessionKey: state.sessionKey,
-    }
-    const res = await fetch(joinUrl(base, 'analyze'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...authHeader(state.settings.proxyToken) },
-      body: JSON.stringify(body),
-    })
-    const json = (await res.json()) as AnalyzeResponse
-    if (!res.ok || !json.ok) throw new Error(json.ok ? `HTTP ${res.status}` : json.error)
+    const json = await postAnalyze('full')
     state.analyzedUpTo = lastId
     applyAnalysis(json.analysis)
     state.lastError = ''
@@ -246,14 +282,93 @@ async function analyze() {
   }
 }
 
-function applyAnalysis(a: Analysis) {
-  const alpha = state.analysis.score ? 0.6 : 1
-  const mix = (prev: number, next: number) => prev + (next - prev) * alpha
-  state.smooth = {
-    joy: mix(state.smooth.joy, a.emotions.joy),
-    anger: mix(state.smooth.anger, a.emotions.anger),
-    sorrow: mix(state.smooth.sorrow, a.emotions.sorrow),
-    pleasure: mix(state.smooth.pleasure, a.emotions.pleasure),
+/** 二段表示の 1 段目: Jev の数値判定。発話のたびに呼ぶ */
+async function analyzeFast() {
+  if (state.analyzing) { scheduleAnalyze(); return }
+  const lastId = state.turns.at(-1)?.id ?? 0
+  if (lastId <= state.analyzedUpTo) return
+  state.analyzing = true
+  const t0 = Date.now()
+  try {
+    const json = await postAnalyze('fast')
+    state.analyzedUpTo = lastId
+    applyAnalysis(json.analysis, 'numbers')
+    state.lastError = ''
+    ui.log(`fast ${json.provider} (${Date.now() - t0}ms) face=${json.analysis.face} ${json.analysis.mood} score=${json.analysis.score}${json.held?.length ? ` (held ${json.held.join(',')})` : ''}`)
+    if (state.micOn) ui.setStatus('listening', '聞き取り中…')
+  } catch (e) {
+    state.lastError = `fast: ${(e as Error).message}`
+    ui.log(state.lastError)
+    ui.setStatus('error', state.lastError)
+  } finally {
+    state.analyzing = false
+    void render()
+  }
+  maybeAnalyzeText()
+}
+
+/** 二段表示の 2 段目: LLM の文章。変化があった時・古くなった時だけ呼ぶ */
+function maybeAnalyzeText() {
+  if (state.textPending) return
+  const a = state.analysis
+  const lastId = state.turns.at(-1)?.id ?? 0
+  if (lastId <= state.textUpTo) return
+  const now = Date.now()
+  const minInterval = Math.max(2, state.settings.analyzeIntervalSec) * 1000
+  if (now - state.lastTextAt < minInterval) {
+    window.setTimeout(maybeAnalyzeText, minInterval - (now - state.lastTextAt) + 50)
+    return
+  }
+  const reason = !state.lastTextFace ? 'first'
+    : a.face !== state.lastTextFace ? `face ${state.lastTextFace}→${a.face}`
+    : Math.abs(a.score - state.lastTextScore) >= TEXT_SCORE_DELTA ? `score ${state.lastTextScore}→${a.score}`
+    : now - state.lastTextAt >= TEXT_MAX_STALE_MS ? 'stale'
+    : ''
+  if (!reason) return
+  void analyzeText(reason, lastId)
+}
+
+async function analyzeText(reason: string, lastId: number) {
+  state.textPending = true
+  state.lastTextAt = Date.now()
+  state.lastTextFace = state.analysis.face
+  state.lastTextScore = state.analysis.score
+  const t0 = Date.now()
+  try {
+    const json = await postAnalyze('text')
+    state.textUpTo = lastId
+    applyAnalysis(json.analysis, 'text')
+    ui.log(`text ${json.provider} (${Date.now() - t0}ms, ${reason}) "${json.analysis.suggestions[0] ?? ''}"`)
+  } catch (e) {
+    state.lastError = `text: ${(e as Error).message}`
+    ui.log(state.lastError)
+  } finally {
+    state.textPending = false
+    void render()
+    // 待っている間に発話が進んでいたら、条件を見てもう一度
+    maybeAnalyzeText()
+  }
+}
+
+/**
+ * @param part numbers = 数値(感情・顔・mood・スコア)だけ反映、text = 文章と memory だけ反映、all = 全部
+ */
+function applyAnalysis(next: Analysis, part: 'numbers' | 'text' | 'all' = 'all') {
+  const cur = state.analysis
+  const a: Analysis = part === 'numbers'
+    ? { ...cur, emotions: next.emotions, face: next.face, mood: next.mood, score: next.score, scores: next.scores }
+    : part === 'text'
+      ? { ...cur, digDeeper: next.digDeeper, suggestions: next.suggestions, summary: next.summary, memory: next.memory }
+      : next
+  if (part !== 'text') {
+    const alpha = cur.score ? 0.6 : 1
+    const mix = (prev: number, n: number) => prev + (n - prev) * alpha
+    state.smooth = {
+      joy: mix(state.smooth.joy, a.emotions.joy),
+      anger: mix(state.smooth.anger, a.emotions.anger),
+      sorrow: mix(state.smooth.sorrow, a.emotions.sorrow),
+      pleasure: mix(state.smooth.pleasure, a.emotions.pleasure),
+    }
   }
   state.analysis = a
   ui.setAnalysis({ ...a, emotions: state.smooth })
@@ -269,7 +384,8 @@ async function checkProxy(verbose: boolean) {
     const mock = json.stt === 'mock' || json.llm === 'mock'
     state.proxyMode = mock ? 'mock' : 'live'
     state.proxyLabel = `${json.stt}/${json.llm}`
-    ui.log(`proxy ok: stt=${json.stt} llm=${json.llm} v${json.version} auth=${json.auth ? 'on' : 'off'}`)
+    state.twoStage = Boolean(json.twoStage)
+    ui.log(`proxy ok: stt=${json.stt} llm=${json.llm} v${json.version} auth=${json.auth ? 'on' : 'off'}${json.twoStage ? ` two-stage(jev → ${json.textLlm})` : ''}`)
     if (json.auth && !state.settings.proxyToken) {
       state.lastError = 'サーバトークン未設定'
       ui.setStatus('error', 'サーバはトークン認証を要求しています。設定にサーバトークンを入れてください')

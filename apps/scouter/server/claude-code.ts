@@ -13,8 +13,8 @@ import { join } from 'node:path'
 import type { Analysis, AnalyzeRequest, TranscriptTurn } from '../shared/types'
 import type { Config } from './config'
 import type { LlmProvider } from './llm'
-import { buildDeltaPrompt, buildUserPrompt, SYSTEM_PROMPT } from './prompt'
-import { ANALYSIS_JSON_SCHEMA, AnalysisSchema, normalizeAnalysis } from './schema'
+import { deltaPromptFor, systemPromptFor, userPromptFor } from './prompt'
+import { jsonSchemaFor, toAnalysis, type LlmMode } from './schema'
 
 const TIMEOUT_MS = 90_000
 
@@ -81,22 +81,26 @@ function runClaude(bin: string, args: string[]): Promise<ClaudeResult> {
   })
 }
 
-function extract(parsed: ClaudeResult): Analysis {
+function extract(mode: LlmMode, req: AnalyzeRequest, parsed: ClaudeResult): Analysis {
   const raw = parsed.structured_output ?? tryJson(parsed.result)
   if (!raw) {
     const why = parsed.terminal_reason ?? parsed.subtype ?? 'unknown'
     throw new Error(`claude -p: 構造化出力なし (${why}${parsed.is_error ? ', is_error' : ''}) ${String(parsed.result ?? '').slice(0, 200)}`)
   }
-  return normalizeAnalysis(AnalysisSchema.parse(raw))
+  return toAnalysis(mode, req, raw)
 }
 
-export function claudeCodeProvider(cfg: Config, log: (line: string) => void = console.log): LlmProvider {
+/**
+ * @param mode full = 従来(全項目を LLM が出す)/ text = 文章だけ(数値は Jev。出力が短く速い)
+ */
+export function claudeCodeProvider(cfg: Config, log: (line: string) => void = console.log, mode: LlmMode = 'full'): LlmProvider {
   const sessions = new Map<string, Session>()
+  const tag = mode === 'text' ? '[claude-code:text]' : '[claude-code]'
 
   const commonArgs = () => [
     '-p',
     '--output-format', 'json',
-    '--json-schema', JSON.stringify(ANALYSIS_JSON_SCHEMA),
+    '--json-schema', JSON.stringify(jsonSchemaFor(mode)),
     '--model', cfg.claudeCodeModel,
     '--effort', cfg.claudeCodeEffort,
     '--tools', '',
@@ -109,24 +113,25 @@ export function claudeCodeProvider(cfg: Config, log: (line: string) => void = co
   async function fresh(req: AnalyzeRequest, persist: boolean): Promise<{ analysis: Analysis; sessionId?: string; ms: number }> {
     const t0 = Date.now()
     const turns = req.turns.slice(-cfg.promptTurns)
-    const args = [...commonArgs(), '--system-prompt', SYSTEM_PROMPT]
+    const args = [...commonArgs(), '--system-prompt', systemPromptFor(mode)]
     if (!persist) args.push('--no-session-persistence')
-    args.push(buildUserPrompt(req, turns))
+    args.push(userPromptFor(mode, req, turns))
     const r = await runClaude(cfg.claudeBin, args)
-    return { analysis: extract(r), sessionId: r.session_id, ms: Date.now() - t0 }
+    return { analysis: extract(mode, req, r), sessionId: r.session_id, ms: Date.now() - t0 }
   }
 
   /** 既存セッションに新しい発話だけを追加 */
-  async function resume(sess: Session, newTurns: TranscriptTurn[]): Promise<Analysis> {
-    const args = [...commonArgs(), '--resume', sess.id, buildDeltaPrompt(newTurns)]
+  async function resume(sess: Session, req: AnalyzeRequest, newTurns: TranscriptTurn[]): Promise<Analysis> {
+    const args = [...commonArgs(), '--resume', sess.id, deltaPromptFor(mode, newTurns, req.previous)]
     const r = await runClaude(cfg.claudeBin, args)
     if (r.session_id && r.session_id !== sess.id) sess.id = r.session_id
-    return extract(r)
+    return extract(mode, req, r)
   }
 
   return {
     name: 'claude-code',
     async analyze(req: AnalyzeRequest): Promise<Analysis> {
+      if (mode === 'text' && req.previous && req.turns.length === 0) return req.previous
       const key = req.sessionKey
       if (!cfg.claudeCodeSession || !key) {
         return (await fresh(req, false)).analysis
@@ -143,7 +148,7 @@ export function claudeCodeProvider(cfg: Config, log: (line: string) => void = co
         const { analysis, sessionId, ms } = await fresh(req, true)
         if (sessionId) {
           sessions.set(key, { id: sessionId, lastTurnId: lastId, calls: 1, createdAt: Date.now() })
-          log(`[claude-code] session ${reason} ${sessionId.slice(0, 8)} (${Math.min(req.turns.length, cfg.promptTurns)} turns, ${ms}ms)`)
+          log(`${tag} session ${reason} ${sessionId.slice(0, 8)} (${Math.min(req.turns.length, cfg.promptTurns)} turns, ${ms}ms)`)
         }
         return analysis
       }
@@ -155,14 +160,14 @@ export function claudeCodeProvider(cfg: Config, log: (line: string) => void = co
       }
       const t0 = Date.now()
       try {
-        const analysis = await resume(sess, newTurns.length ? newTurns : req.turns.slice(-1))
+        const analysis = await resume(sess, req, newTurns.length ? newTurns : req.turns.slice(-1))
         sess.lastTurnId = lastId
         sess.calls++
-        log(`[claude-code] resume ${sess.id.slice(0, 8)} +${newTurns.length} turns (${Date.now() - t0}ms, call ${sess.calls})`)
+        log(`${tag} resume ${sess.id.slice(0, 8)} +${newTurns.length} turns (${Date.now() - t0}ms, call ${sess.calls})`)
         return analysis
       } catch (e) {
         // セッションが消えた等 → 巻き直して復旧
-        log(`[claude-code] resume failed (${(e as Error).message.slice(0, 120)}) → new session`)
+        log(`${tag} resume failed (${(e as Error).message.slice(0, 120)}) → new session`)
         sessions.delete(key)
         const { analysis, sessionId } = await fresh(req, true)
         if (sessionId) sessions.set(key, { id: sessionId, lastTurnId: lastId, calls: 1, createdAt: Date.now() })

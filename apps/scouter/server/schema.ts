@@ -1,6 +1,7 @@
 import { z } from 'zod'
-import type { Analysis } from '../shared/types'
-import { FACE_KINDS } from '../shared/types'
+import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
+import type { Analysis, AnalyzeRequest } from '../shared/types'
+import { EMPTY_ANALYSIS, FACE_KINDS } from '../shared/types'
 
 const pct = z.number().min(0).max(100)
 
@@ -15,6 +16,21 @@ export const AnalysisSchema = z.object({
   summary: z.string(),
   memory: z.string().default(''),
 })
+
+/** 文章モード(数値は Jev が出す)で LLM に求める部分 */
+export const TextSchema = z.object({
+  digDeeper: z.array(z.string()),
+  suggestions: z.array(z.string()),
+  summary: z.string(),
+  memory: z.string().default(''),
+})
+export type TextPart = z.infer<typeof TextSchema>
+
+/** 文章モードの結果に数値(previous = Jev の判定)を合わせて Analysis にする */
+export function withNumbers(req: AnalyzeRequest, t: TextPart): Analysis {
+  const p = req.previous ?? EMPTY_ANALYSIS
+  return normalizeAnalysis({ emotions: p.emotions, face: p.face, mood: p.mood, score: p.score, scores: p.scores, ...t })
+}
 
 /** 文字数・件数をグラスに収まる範囲へ丸める(LLM が守らなかった時の保険) */
 export function normalizeAnalysis(a: Analysis): Analysis {
@@ -71,3 +87,25 @@ export const ANALYSIS_JSON_SCHEMA = {
     memory: { type: 'string' },
   },
 } as const
+
+/** 文章モードの JSON Schema */
+export const TEXT_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['digDeeper', 'suggestions', 'summary', 'memory'],
+  properties: {
+    digDeeper: { type: 'array', items: { type: 'string' } },
+    suggestions: { type: 'array', items: { type: 'string' } },
+    summary: { type: 'string' },
+    memory: { type: 'string' },
+  },
+} as const
+
+export type LlmMode = 'full' | 'text'
+export const schemaFor = (mode: LlmMode) => (mode === 'text' ? TextSchema : AnalysisSchema)
+export const jsonSchemaFor = (mode: LlmMode) => (mode === 'text' ? TEXT_JSON_SCHEMA : ANALYSIS_JSON_SCHEMA)
+/** パース結果を Analysis に(文章モードは previous の数値を合わせる) */
+export function toAnalysis(mode: LlmMode, req: AnalyzeRequest, raw: unknown): Analysis {
+  return mode === 'text' ? withNumbers(req, TextSchema.parse(raw)) : normalizeAnalysis(AnalysisSchema.parse(raw))
+}
+export const zodFormatFor = (mode: LlmMode) => (mode === 'text' ? zodOutputFormat(TextSchema) : zodOutputFormat(AnalysisSchema))

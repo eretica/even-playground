@@ -25,7 +25,8 @@
     "worker:tail": "wrangler tail",
     "compare": "node --env-file-if-exists=server/.env --import tsx scripts/compare-llm.ts",
     "bench": "node --env-file-if-exists=server/.env --import tsx scripts/jev-bench.ts",
-    "gate-eval": "node --env-file-if-exists=server/.env --import tsx scripts/gate-eval.ts"
+    "gate-eval": "node --env-file-if-exists=server/.env --import tsx scripts/gate-eval.ts",
+    "eval": "node --env-file-if-exists=server/.env --import tsx scripts/eval-jev.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.125.0",

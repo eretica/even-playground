@@ -9,7 +9,7 @@ import { createApp } from './app'
 import { claudeCodeAvailable, claudeCodeProvider } from './claude-code'
 import { configFromEnv } from './config'
 import type { AnalyzeRequest } from '../shared/types'
-import type { LlmProvider } from './llm'
+import type { ExtraLlms } from './llm'
 
 const PORT = Number(process.env.PORT || 8787)
 
@@ -18,7 +18,9 @@ const cfg = configFromEnv(process.env, {
 })
 // Claude Code がログイン済みならサブスク枠の `claude -p` を LLM に使う(auto 時の最優先)
 const claudeVersion = cfg.llmProvider === 'mock' ? null : claudeCodeAvailable(cfg.claudeBin)
-const extraLlm: Record<string, LlmProvider> = claudeVersion ? { 'claude-code': claudeCodeProvider(cfg, console.log) } : {}
+const extraLlm: ExtraLlms = claudeVersion
+  ? { full: { 'claude-code': claudeCodeProvider(cfg, console.log, 'full') }, text: { 'claude-code': claudeCodeProvider(cfg, console.log, 'text') } }
+  : {}
 // RECORD_TURNS=1: /analyze に届いた発話を server/recordings/<日付>-<sessionKey>.txt に追記(`npm run compare -- --file` で再生できる形式)
 const RECORD = process.env.RECORD_TURNS === '1'
 const recDir = join(import.meta.dirname, 'recordings')
@@ -73,6 +75,7 @@ server.listen(PORT, '0.0.0.0', () => {
     .map(n => n!.address)
   console.log(`scouter proxy (node)  stt=${app.stt.name}  llm=${app.llm.name}${app.llm.name === 'claude-code' ? ` (${cfg.claudeCodeModel}/${cfg.claudeCodeEffort}, session=${cfg.claudeCodeSession ? 'on' : 'off'}, Claude Code ${claudeVersion})` : ''}  auth=${cfg.sharedSecret ? 'on' : 'off'}`)
   console.log(`  llm options (/analyze?provider=): ${Object.keys(app.llms).join(', ')}   stt gate: ${app.gate ? app.gate.name : 'off'}`)
+  console.log(`  two-stage: ${app.llms.jev ? `on (fast=jev → text=${app.textLlm.name})` : 'off (TYPESAFE_API_KEY なし。従来の 1 段)'}`)
   if (RECORD) console.log(`  recording turns → ${recDir}/`)
   console.log(`listening on http://0.0.0.0:${PORT}`)
   for (const ip of ips) console.log(`  → http://${ip}:${PORT}  (app.json の whitelist / スマホ側設定に使う)`)

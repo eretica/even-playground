@@ -42,6 +42,11 @@ export interface Config {
   sttGate: 'off' | 'jev'
   /** Jev ゲートの「実発話」確率の閾値(0-1)。これ未満の文字起こしは捨てる */
   jevGateThreshold: number
+  /** face / mood の confidence がこれ未満なら前回の値を保持する(ヒステリシス) */
+  jevMinConfidence: number
+  /** whisper の用語集(初期プロンプト)。WHISPER_CONTEXT=1 なら直前の文字起こし末尾も繋いで文脈を渡す */
+  whisperPrompt: string
+  whisperContext: boolean
 }
 
 export type EnvLike = Record<string, string | undefined>
@@ -79,5 +84,8 @@ export function configFromEnv(env: EnvLike, opts: { anthropicHasCreds?: boolean 
     jevTurns: Number(s('JEV_TURNS', '6')) || 6,
     sttGate: s('STT_GATE', 'off').toLowerCase() === 'jev' ? 'jev' : 'off',
     jevGateThreshold: Math.min(1, Math.max(0, Number(s('JEV_GATE_THRESHOLD', '0.5')) || 0.5)),
+    jevMinConfidence: Math.min(1, Math.max(0, Number(s('JEV_MIN_CONFIDENCE', '0.5')) || 0.5)),
+    whisperPrompt: s('WHISPER_PROMPT'),
+    whisperContext: s('WHISPER_CONTEXT', '1') !== '0',
   }
 }

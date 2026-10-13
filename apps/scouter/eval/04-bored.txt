@@ -1,0 +1,11 @@
+# 気のない返事(退屈)
+self: この前話してた映画、見ました？
+other: ああ、まだです。
+= face:neutral mood:様子見|退屈
+self: 面白かったですよ。主人公がですね、
+other: へえ。
+other: そうなんですね。
+= face:neutral mood:退屈|様子見
+self: 週末とかどうしてるんですか？
+other: 別に、普通に。
+= face:neutral mood:退屈|警戒|様子見

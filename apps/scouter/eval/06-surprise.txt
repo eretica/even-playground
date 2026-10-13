@@ -1,0 +1,9 @@
+# 驚き → 喜び
+self: 実は、来月から海外に転勤になったんだ。
+other: え、本当に？いつ決まったの？
+= face:surprised mood:驚き
+self: 先週。急だよね。
+other: まさか…。でも、ずっと行きたがってたじゃん。おめでとう！
+= face:happy|surprised mood:上機嫌|驚き
+other: 寂しくなるけど、絶対遊びに行くからね。
+= face:happy|sad mood:上機嫌|沈み|乗り気
