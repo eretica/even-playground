@@ -50,6 +50,8 @@ style: |
   section tr:nth-child(even) td { background: #e9efe6; }
   section blockquote { border-left: 6px solid #1b7f3b; padding-left: 20px; color: #3d4a43; font-size: 22px; }
   section header { font-family: 'JetBrains Mono', monospace; font-size: 16px; letter-spacing: 2px; color: #1b7f3b; top: 40px; left: 72px; }
+  section footer { position: absolute; left: 72px; right: 220px; bottom: 24px; font-size: 14px; line-height: 1.4; color: #6b7a71; }
+  section.dark footer { color: #8fa497; }
   section::after { font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #6b7a71; content: 'Scouter × Jev · ' attr(data-marpit-pagination); }
   section.alt { background: #e9efe6; }
   section.dark { background: #0e1713; color: #f3f6f1; }
@@ -143,6 +145,7 @@ Even G2 × whisper.cpp × *Jev* × Claude Code
 
 <!-- _class: alt cards -->
 <!-- _header: '01 / 前提' -->
+<!-- _footer: 'PCM = 圧縮していない生の音声データ(16kHz = 1 秒 16,000 サンプル) · BLE = Bluetooth Low Energy。省電力の無線で、グラスとスマホを繋いでいる' -->
 
 ## Even G2 のアプリは「スマホで動く Web アプリ」
 
@@ -174,6 +177,7 @@ Even G2 × whisper.cpp × *Jev* × Claude Code
 
 <!-- _class: dark cards -->
 <!-- _header: '01 / PoC の割り切り' -->
+<!-- _footer: 'STT = Speech to Text(音声の文字起こし) · LLM = 大規模言語モデル(Claude 等) · プロキシ = アプリの代わりに外部サービスを呼ぶ中継サーバ' -->
 
 ## 「サクサク動くこと」を最優先に決めた 4 つ
 
@@ -187,6 +191,7 @@ Even G2 × whisper.cpp × *Jev* × Claude Code
 ---
 
 <!-- _header: '02 / どう実現したか' -->
+<!-- _footer: 'BLE = グラスとスマホを繋ぐ省電力無線 · WebView = アプリ内に埋め込まれたブラウザ · プロキシ = 外部サービスを代わりに呼ぶ中継サーバ · HTTP POST = 普通の Web リクエスト' -->
 
 ## 全体の流れ: グラス → スマホ → PC の 3 つのサービス
 
@@ -202,6 +207,7 @@ iOS の WebView で WebSocket が落ちる報告があるので HTTP POST にし
 
 <!-- _class: tight proxy -->
 <!-- _header: '02 / PC プロキシの中身' -->
+<!-- _footer: 'PCM = 生の音声データ · whisper = OpenAI 製の音声認識モデル(ここでは Mac 上で動くローカル実装 whisper.cpp) · noul = 真偽の確率を返す Jev の質問型 · confidence = 判定の確信度 0〜1' -->
 
 ## 中身は 3 つのエンドポイント、約 100 行
 
@@ -212,7 +218,7 @@ iOS の WebView で WebSocket が落ちる報告があるので HTTP POST にし
 | `POST /analyze?stage=fast` | 直近の発話 + 前回の結果 → 数値 | Jev に 9 問を 1 リクエスト。confidence が低い顔・一言は前回値を保持 |
 | `POST /analyze?stage=text` | 同上 → 助言・深掘り・要約・memory | `claude -p --json-schema` を子プロセスで起動。2 回目以降は `--resume` で新しい発話だけ渡す |
 
-- **Web 標準の Request / Response だけで書いた**。Node と Cloudflare Workers は薄いアダプタで、同じ本体が動く
+- **フレームワーク無し**。Node 標準の `http` + `tsx`(TypeScript 実行)で、本体は Web 標準の Request / Response。依存は Jev の SDK と zod だけ。Cloudflare Workers 版も同じ本体
 - **サービスは環境変数で差し替え**。`LLM_PROVIDER=jev+claude-code` のような合成も、`?provider=` での比較もできる
 - **鍵と到達性**。Bearer 認証は任意、開発中は Vite の中継で同一オリジン、外出先は Tailscale で Mac へ
 
@@ -225,6 +231,7 @@ Web 標準の Request / Response だけで書いたので、Cloudflare Workers �
 
 <!-- _class: alt tight -->
 <!-- _header: '02 / ローカルで動かす' -->
+<!-- _footer: 'Vite = フロントエンド用の開発サーバ · シミュレータ = グラスとスマホの画面を Mac 上で再現する公式ツール · Tailscale = 端末同士を直接つなぐ VPN' -->
 
 ## Mac 1 台、コマンド 1 つで全部上がる
 
@@ -250,6 +257,7 @@ npm run start
 ---
 
 <!-- _header: '02 / 使ったもの' -->
+<!-- _footer: 'STT = 音声の文字起こし · VAD = 発話区間検出(無音を文字起こしに回さない) · Metal = Mac の GPU 計算 · LLM = 大規模言語モデル · tok = トークン(課金の単位。日本語はおおよそ 1 文字 1〜2 トークン)' -->
 
 ## 役割ごとに一番手軽なものを選んだ
 
@@ -269,6 +277,7 @@ npm run start
 
 <!-- _class: dark cards -->
 <!-- _header: '03 / Jev とは' -->
+<!-- _footer: 'confidence = 判定の確信度(0〜1)。確率分布を 1 つの数に畳んだもので、高いほど当たりやすいように学習されている' -->
 
 ## 文章を書かない AI。判定だけを確率付きで返す
 
@@ -300,6 +309,7 @@ TypeSafe AI が 2026-09-15 に公開。元 OpenAI(InstructGPT)の研究者が創
 
 <!-- _class: dark code -->
 <!-- _header: '03 / 使い方' -->
+<!-- _footer: 'state = 判定の材料として渡す入力データ · probabilities = 選択肢(または段階)ごとの確率 · confidence = 確信度 · token = 入力の課金単位' -->
 
 ## リクエストは state + 質問、レスポンスは質問ごとの確率
 
@@ -347,6 +357,7 @@ const { answers, model, usage } = await client.systemOne({
 
 <!-- _class: alt -->
 <!-- _header: '03 / 二段表示' -->
+<!-- _footer: 'confidence = 判定の確信度 · セッション継続 = 会話の文脈を Claude 側に保持しておき、新しい発話だけを追加で送る方式' -->
 
 ## 数値は Jev が即時、文章は Claude が「変わった時だけ」
 
@@ -359,6 +370,7 @@ const { answers, model, usage } = await client.systemOne({
 ---
 
 <!-- _header: '03 / 効いた設計' -->
+<!-- _footer: 'state = Jev に渡す入力データ · confidence = 判定の確信度 · 較正 = 「0.9 と言ったら 9 割当たる」ように確率が調整されていること' -->
 
 ## 精度を決めたのは「質問の書き方」だった
 
@@ -378,6 +390,7 @@ const { answers, model, usage } = await client.systemOne({
 
 <!-- _class: dark numbers -->
 <!-- _header: '04 / 測った数字' -->
+<!-- _footer: 'p50 = 中央値 · トークン = 入力の課金単位 · CLI = コマンドライン版の Claude Code(claude -p) · 幻聴 = 音声認識が無音や雑音から作り出す存在しない文章' -->
 
 ## 判定は 40 倍速く、精度は Claude と並んだ
 
@@ -446,6 +459,7 @@ const { answers, model, usage } = await client.systemOne({
 
 <!-- _class: cards -->
 <!-- _header: '06 / 引っかかった所 2/2' -->
+<!-- _footer: 'BLE = グラスとスマホを繋ぐ省電力無線 · protobuf = Google 製のバイナリ形式。値が 0 や空のとき省略されて届く · VAD = 発話区間検出' -->
 
 ## PoC で踏んだもの: 文字起こしとグラス
 
