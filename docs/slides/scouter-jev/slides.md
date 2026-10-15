@@ -59,11 +59,31 @@ style: |
   section.dark code { background: #16241c; color: #35d96a; }
   section.dark::after { color: #8fa497; }
   section.dark em { color: #35d96a; font-style: normal; font-weight: 700; }
+  section.dark blockquote { color: #c9d6cd; border-left-color: #35d96a; }
+  section.demo blockquote { border-left-color: #e2a63a; margin-top: 16px; }
   section.demo header { color: #e2a63a; }
   section.demo em { color: #e2a63a; }
   section.big h2 { font-size: 56px; }
   section.center { display: flex; flex-direction: column; justify-content: center; }
   section img[alt~="shot"] { border-radius: 12px; background: #000; }
+  /* 縦並びカード: 1 項目 = 太字の見出し + 1〜2 行の補足 */
+  section.cards ul { list-style: none; padding: 0; margin: 8px 0 0; }
+  section.cards li { background: #ffffff; border-left: 6px solid #1b7f3b; border-radius: 8px; padding: 8px 18px; margin: 0 0 8px; font-size: 21px; line-height: 1.45; }
+  section.cards li strong { display: block; font-size: 24px; margin-bottom: 2px; }
+  section.cards li code { font-size: 0.85em; }
+  section.alt.cards li { background: #f8faf6; }
+  section.dark.cards li { background: #16241c; border-left-color: #35d96a; }
+  section.dark.cards li strong { color: #35d96a; }
+  /* 目次: 番号つき見出しと補足を 1 行に揃える */
+  section.agenda ul { list-style: none; padding: 0; margin: 8px 0 0; }
+  section.agenda li { font-size: 26px; margin: 12px 0; }
+  section.agenda li strong { display: inline-block; min-width: 330px; }
+  /* 数字を先に見せる表: 1 列目を大きく */
+  section.numbers table { margin-bottom: 20px; }
+  section.numbers td { vertical-align: middle; }
+  section.numbers td:first-child { font-family: 'JetBrains Mono', monospace; font-size: 34px; font-weight: 700; color: #35d96a; white-space: nowrap; width: 1%; padding-right: 24px; }
+  section.numbers td strong { display: block; }
+  section.numbers li { font-size: 21px; }
 ---
 
 <!-- _class: dark center -->
@@ -85,12 +105,16 @@ Even G2 × whisper.cpp × *Jev* × Claude Code
 
 ---
 
+<!-- _class: agenda center -->
+
 ## 今日の話
 
-| | | |
-|---|---|---|
-| **01 作ったもの** グラスに何が出るか、PoC で何を割り切ったか | **02 どう実現したか** サービスの連携と、ローカルでの動かし方 | **03 Jev をどう使ったか** 文章を書かない判定モデルの使い所と設計 |
-| **04 測った数字** 速さ・精度・コスト | **05 デモ** シミュレータでライブ | **06 引っかかった所と次** PoC で学んだこと、続けるなら何をするか |
+- **01 作ったもの** グラスに何が出るか、PoC で何を割り切ったか
+- **02 どう実現したか** サービスの連携と、ローカルでの動かし方
+- **03 Jev をどう使ったか** 文章を書かない判定モデルの使い所と設計
+- **04 測った数字** 速さ・精度・コスト
+- **05 デモ** シミュレータでライブ
+- **06 引っかかった所と次** PoC で学んだこと、続けるなら何をするか
 
 <!-- 6 つ。15〜20 分で、途中にデモを挟む。 -->
 
@@ -98,13 +122,13 @@ Even G2 × whisper.cpp × *Jev* × Claude Code
 
 <!-- _header: '01 / 作ったもの' -->
 
-## 目の前の相手を「スカウター」で見る
+## 相手を「スカウター」で見る
 
 - **喜怒哀楽・関心・本音をゲージで** 会話の文字起こしから相手の状態を推定して数値に
 - **顔アイコンと一言の状態ラベル** 「上機嫌」「疲れ」「警戒」など 10 種から
 - **次に言う一言と深掘りポイント** そのまま口に出せる口語で 2 件まで
 
-![bg right:50% fit](img/glasses.png)
+![bg right:48% fit](img/glasses.png)
 
 <!--
 装着者が誰かと話している間、相手の発話だけから状態を推定してグラスの端に出す。
@@ -113,14 +137,14 @@ Even G2 × whisper.cpp × *Jev* × Claude Code
 
 ---
 
-<!-- _class: alt -->
+<!-- _class: alt cards -->
 <!-- _header: '01 / 前提' -->
 
 ## Even G2 のアプリは「スマホで動く Web アプリ」
 
-| 画面は小さく、緑一色 | ロジックは全部スマホ側 | グラスは表示 + 入力デバイス |
-|---|---|---|
-| 576×288 px、4bit 緑モノクロ。CSS も DOM も無く、テキスト・リスト・画像の「コンテナ」を絶対座標で並べるだけ | Even App 内の WebView で Vite + TypeScript が動く。グラスには一切ロジックが載らない | BLE 越しにタップ・スワイプ・マイクの PCM(16kHz)が届く。発話ごとに self / other の推定ラベル付き |
+- **画面は小さく、緑一色** 576×288 px、4bit 緑モノクロ。CSS も DOM も無く、テキスト・リスト・画像の「コンテナ」を絶対座標で並べるだけ
+- **ロジックは全部スマホ側** Even App 内の WebView で Vite + TypeScript が動く。グラスには一切ロジックが載らない
+- **グラスは表示 + 入力デバイス** BLE 越しにタップ・スワイプ・マイクの PCM(16kHz)が届く。発話ごとに self / other の推定ラベル付き
 
 公式シミュレータがあり、実機が無くても同じコードをそのまま動かせる
 
@@ -128,16 +152,15 @@ Even G2 × whisper.cpp × *Jev* × Claude Code
 
 ---
 
-<!-- _class: dark -->
+<!-- _class: dark cards -->
 <!-- _header: '01 / PoC の割り切り' -->
 
 ## 「サクサク動くこと」を最優先に決めた 4 つ
 
-| *実機を待たない* | *LLM は Claude Code のサブスク枠* |
-|---|---|
-| 公式シミュレータ + Mac のマイクで開発も検証もデモも。自動操作 API でスクショとタップをスクリプト化 | API キーを新しく契約せず、ログイン済みの `claude -p` を子プロセスで叩く。構造化出力は `--json-schema` |
-| *文字起こしはローカル* | *鍵はスマホに載せない* |
-| whisper.cpp(large-v3-turbo)を Mac で常駐。無料・オフライン・1 チャンク 0.5 秒。クラウド STT の無料枠は 1 日 20 回で足りなかった | PC 上の小さなプロキシ(Node、約 100 行)が STT・判定・LLM を全部仲介。スマホは音声を送って JSON を受けるだけ |
+- **実機を待たない** 公式シミュレータ + Mac のマイクで開発も検証もデモも。自動操作 API でスクショとタップをスクリプト化
+- **文字起こしはローカル** whisper.cpp(large-v3-turbo)を Mac で常駐。無料・オフライン・1 チャンク 0.5 秒。クラウド STT の無料枠は 1 日 20 回で足りなかった
+- **LLM は Claude Code のサブスク枠** API キーを新しく契約せず、ログイン済みの `claude -p` を子プロセスで叩く。構造化出力は `--json-schema`
+- **鍵はスマホに載せない** PC 上の小さなプロキシ(Node、約 100 行)が STT・判定・LLM を全部仲介。スマホは音声を送って JSON を受けるだけ
 
 <!-- PoC なので「ちゃんとした本番構成」より「今日動く」を優先した。この 4 つで、追加契約ゼロ、実機ゼロで動くところまで行けた。 -->
 
@@ -201,13 +224,25 @@ npm run start
 
 ---
 
-<!-- _class: dark tight -->
+<!-- _class: dark cards -->
 <!-- _header: '03 / Jev とは' -->
 
 ## 文章を書かない AI。判定だけを確率付きで返す
 
-TypeSafe AI が 2026-09-15 に公開。元 OpenAI(InstructGPT)の研究者が創業。「スマートな if 文」。入力は JSON、出力は型の決まった値で、質問は 3 種類:
-`choice`(選択肢から 1 つ。各候補の確率と confidence)・`score`(順序尺度の期待値。喜びは 0〜3 のどこか)・`noul`(真偽の確率。「実際の発話か」が 0.93)
+TypeSafe AI が 2026-09-15 に公開。元 OpenAI(InstructGPT)の研究者が創業。「スマートな if 文」。入力は JSON、出力は型の決まった値で、質問は 3 種類
+
+- **`choice` 選択肢から 1 つ** 各候補の確率と confidence が返る
+- **`score` 順序尺度の期待値** 喜びは 0〜3 のどこか
+- **`noul` 真偽の確率** 「実際の発話か」が 0.93
+
+<!-- LLM の代替ではなく、前段や横に置く「判定エンジン」。早期アクセス中で waitlist 登録が要る。 -->
+
+---
+
+<!-- _class: dark -->
+<!-- _header: '03 / Jev の向き不向き' -->
+
+## 速くて安い。ただし文章は書けず、字義通りに読む
 
 | *メリット* | *デメリット* |
 |---|---|
@@ -216,7 +251,7 @@ TypeSafe AI が 2026-09-15 に公開。元 OpenAI(InstructGPT)の研究者が創
 | 確率が較正されている。confidence で「自動 / 保留 / LLM に回す」を分岐できる | 日本語は英語より精度が落ちると公式が注記。自前データで要検証 |
 | 嘘の文章を書かない。外れても「判定が外れる」形で済む | モデル版を固定できない(jev-latest / jev-preview のみ)。更新で分布が変わり得る |
 
-<!-- LLM の代替ではなく、前段や横に置く「判定エンジン」。早期アクセス中で waitlist 登録が要る。公式の弱点一覧(jaggedness)は設計のチェックリストとして使える。 -->
+<!-- 公式の弱点一覧(jaggedness)は設計のチェックリストとして使える。 -->
 
 ---
 
@@ -292,20 +327,23 @@ const { answers, model, usage } = await client.systemOne({
 | 計算が苦手 | 総合スコアも Jev に聞いていた | 関心・親密・感情の正負からコードで合成 |
 | (較正を活かす) | confidence を見ていなかった | 0.5 未満は前回値を保持。ただし前回値が候補に残っている時だけ |
 
-「前回の値を渡さない」だけで、話題が変わっても「疲れ」を引きずる固着が消えた(表情の一致 5/6 → 6/6)
+「前回の値を渡さない」だけで「疲れ」を引きずる固着が消えた(表情の一致 5/6 → 6/6)
 
 <!-- LLM だと「文脈で察して」で済む部分が、Jev では全部こちらの書き方に跳ね返る。公式の弱点一覧をそのままチェックリストにした。話者が全部 unknown になるシミュレータでは「相手の最新発話」が空になって confidence が落ちる問題もあり、self 以外の最新発話を使うようにした。 -->
 
 ---
 
-<!-- _class: dark -->
+<!-- _class: dark numbers -->
 <!-- _header: '04 / 測った数字' -->
 
 ## 判定は 40 倍速く、精度は Claude と並んだ
 
-| Jev の判定 9 問 | Claude Code の文章 | 表情の一致(評価セット) | Jev のコスト |
-|---|---|---|---|
-| *0.2〜0.5 秒* p50 0.19 秒、約 3,000 トークン。並列 5 本でも劣化なし | *8〜10 秒* CLI 起動 1.4 秒 + 7K トークンの前置き + 2〜3 ターン | *21 / 21* 6 会話 21 地点。一言ラベルも 21/21。Claude とは 6/6 一致 | *0.03 ドル* 1 時間しゃべり続けた場合。出力は無料 |
+| | |
+|---|---|
+| 0.2〜0.5 秒 | **Jev の判定 9 問** p50 0.19 秒、約 3,000 トークン。並列 5 本でも劣化なし |
+| 8〜10 秒 | **Claude Code の文章** CLI 起動 1.4 秒 + 7K トークンの前置き + 2〜3 ターン |
+| 21 / 21 | **表情の一致(評価セット)** 6 会話 21 地点。一言ラベルも 21/21。Claude とは 6/6 一致 |
+| 0.03 ドル | **Jev のコスト** 1 時間しゃべり続けた場合。出力は無料 |
 
 - **幻聴ゲート**(幻聴 15 / 実発話 20): 閾値 0.6 で幻聴 13 件を除去、誤除去 0 件。残った「おやすみなさい」「ありがとうございました」は実会話でも言う言葉
 - **モデルを替えても速くならない**: haiku は思考が暴走して 20〜40 秒、opus は 12 秒。sonnet のまま「呼ぶ回数と出力量を減らす」方が効いた
@@ -318,9 +356,9 @@ const { answers, model, usage } = await client.systemOne({
 
 ## スマホ側とグラス側
 
-![shot w:960](img/glasses.png)
+![shot w:680](img/glasses.png)
 
-グラス。読み上げ音声「写真を撮るのが楽しくて、休みが待ち遠しい」を聞かせた直後。タップでパネルが 提案 → 深掘り → スコア → 会話 と切り替わる
+読み上げ音声「写真を撮るのが楽しくて、休みが待ち遠しい」の直後。タップでパネルが 提案 → 深掘り → スコア → 会話 と切り替わる。右はスマホ側
 
 ![bg right:30% fit](img/phone.png)
 
@@ -328,46 +366,63 @@ const { answers, model, usage } = await client.systemOne({
 
 ---
 
-<!-- _class: dark demo big -->
+<!-- _class: dark demo big tight -->
 <!-- _header: '05 / ここでデモ' -->
 
 ## シミュレータでライブ
 
-| 手順 | 見どころ |
-|---|---|
-| **1.** `npm run start` でシミュレータを出す | 話した直後にゲージと顔が動く(Jev) |
-| **2.** グラスをタップしてマイク開始 | 数秒遅れて「次の一言」が差し込まれる(Claude) |
-| **3.** Mac のマイクに向かって話す(2 人分を 1 人で) | 「その話はもういいです」で怒り顔に切り替わる |
-| | スマホ側のログに各段階の秒数が出る |
+### 手順
+1. `npm run start` でシミュレータを出す
+2. グラスをタップしてマイク開始
+3. Mac のマイクに向かって話す(2 人分を 1 人で)
 
-うまく行かない時: 会場の環境音で余計な発話が混ざる / Claude の応答が 10 秒を超えることがある / 話者は全部 unknown になる(シミュレータは判別しない)
+### 見どころ
+- 話した直後にゲージと顔が動く(*Jev*)
+- 数秒遅れて「次の一言」が差し込まれる(*Claude*)
+- 「その話はもういいです」で怒り顔に切り替わる
+- スマホ側のログに各段階の秒数が出る
+
+> うまく行かない時: 会場の環境音で余計な発話が混ざる / Claude の応答が 10 秒を超えることがある / 話者は全部 unknown になる(シミュレータは判別しない)
 
 <!-- デモ前に起動しておく。疲れた話 → 楽しい話 → 急に不機嫌、の順で自分で演じると変化が分かりやすい。 -->
 
 ---
 
-<!-- _header: '06 / 引っかかった所' -->
+<!-- _class: cards -->
+<!-- _header: '06 / 引っかかった所 1/2' -->
 
-## PoC で踏んだもの
+## PoC で踏んだもの: 判定と LLM
 
-| | | |
-|---|---|---|
-| **Jev は前回値に引きずられる** 前回の表情を渡すと「疲れ」が固着。渡すのをやめ、最新発話を最重視と書いて解消 | **話者が全部 unknown** シミュレータは判別しない。「相手の最新発話」が空になり confidence が落ちた。self 以外を相手扱いに | **whisper の 4 秒境界** 文の途中で切れて「コーディング」と幻聴。直前の末尾を次の prompt に繋いで解消 |
-| **claude -p が遅い** リポジトリ内で起動すると CLAUDE.md を読んで 18K トークン。空ディレクトリで起動して 4K に。それでも 8 秒 | **無音でも whisper が喋る** 「ご視聴ありがとうございました」が延々出る。VAD + 正規表現 + Jev ゲートの三段構え | **グラスの描画の罠** 絵文字は無言で消える、BLE 呼び出しは直列化しないと落ちる、protobuf のゼロ値は undefined で届く |
+- **Jev は前回値に引きずられる** 前回の表情を渡すと「疲れ」が固着。渡すのをやめ、最新発話を最重視と書いて解消
+- **話者が全部 unknown** シミュレータは判別しない。「相手の最新発話」が空になり confidence が落ちた。self 以外を相手扱いに
+- **claude -p が遅い** リポジトリ内で起動すると CLAUDE.md を読んで 18K トークン。空ディレクトリで起動して 4K に。それでも 8 秒
 
 <!-- どれも「動かしてみて初めて分かった」類。評価スクリプトと自動操作のシミュレータがあったので、直す → 測る のループが数分で回せた。 -->
 
 ---
 
-<!-- _class: alt -->
+<!-- _class: cards -->
+<!-- _header: '06 / 引っかかった所 2/2' -->
+
+## PoC で踏んだもの: 文字起こしとグラス
+
+- **whisper の 4 秒境界** 文の途中で切れて「コーディング」と幻聴。直前の末尾を次の prompt に繋いで解消
+- **無音でも whisper が喋る** 「ご視聴ありがとうございました」が延々出る。VAD + 正規表現 + Jev ゲートの三段構え
+- **グラスの描画の罠** 絵文字は無言で消える、BLE 呼び出しは直列化しないと落ちる、protobuf のゼロ値は undefined で届く
+
+<!-- グラス側の罠は SDK の仕様。docs/pitfalls.md にまとめてある。 -->
+
+---
+
+<!-- _class: alt cards -->
 <!-- _header: '06 / 次にやるなら' -->
 
-## PoC の先に残っているもの
+## PoC の先に残っているもの(優先度順)
 
-| | |
-|---|---|
-| **実会話で評価セットを育てる** 録音モードで溜めた会話に正解を付けて、Jev のモデル更新時に自動で再確認する。今の 21 地点は自作で甘い | **助言の 8 秒を縮める** Anthropic API を直接叩けば 2〜3 秒の見込み(サブスク枠は外れる)。Agent SDK で常駐セッションにする手も |
-| **実機で確認** 日本語フォントの描画、話者推定の精度、Android でバックグラウンドに落ちた時の復帰 | **音声そのものから判定** Jev 型の音声判定モデル(オープンウェイト、日本語)なら声のトーンが使える。文字起こしの誤りに左右されない |
+- **実会話で評価セットを育てる** 録音モードで溜めた会話に正解を付けて、Jev のモデル更新時に自動で再確認する。今の 21 地点は自作で甘い
+- **助言の 8 秒を縮める** Anthropic API を直接叩けば 2〜3 秒の見込み(サブスク枠は外れる)。Agent SDK で常駐セッションにする手も
+- **実機で確認** 日本語フォントの描画、話者推定の精度、Android でバックグラウンドに落ちた時の復帰
+- **音声そのものから判定** Jev 型の音声判定モデル(オープンウェイト、日本語)なら声のトーンが使える。文字起こしの誤りに左右されない
 
 <!-- 優先度は上の 2 つ。実機は手元に用意できれば。音声判定は実験枝。 -->
 
