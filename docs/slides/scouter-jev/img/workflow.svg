@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="560" viewBox="0 0 1600 560" font-family="'Zen Kaku Gothic New','Hiragino Sans','Noto Sans JP',sans-serif">
+  <defs>
+    <marker id="g" orient="auto" markerWidth="10" markerHeight="10" refX="8" refY="5"><path d="M0 0 L10 5 L0 10 Z" fill="#1b7f3b"/></marker>
+    <marker id="s" orient="auto" markerWidth="10" markerHeight="10" refX="8" refY="5"><path d="M0 0 L10 5 L0 10 Z" fill="#8fa497"/></marker>
+  </defs>
+  <!-- row 1 -->
+  <rect x="0" y="0" width="320" height="130" rx="16" fill="#0e1713"/>
+  <text x="160" y="58" text-anchor="middle" font-size="30" font-weight="700" fill="#35d96a">グラス Even G2</text>
+  <text x="160" y="98" text-anchor="middle" font-size="24" fill="#c9d6cd">マイク + 表示</text>
+  <rect x="448" y="0" width="320" height="130" rx="16" fill="#ffffff" stroke="#1b7f3b" stroke-width="3"/>
+  <text x="608" y="58" text-anchor="middle" font-size="30" font-weight="700" fill="#122018">Even App</text>
+  <text x="608" y="98" text-anchor="middle" font-size="24" fill="#3d4a43">スマホの WebView</text>
+  <rect x="896" y="0" width="320" height="130" rx="16" fill="#ffffff" stroke="#1b7f3b" stroke-width="3"/>
+  <text x="1056" y="58" text-anchor="middle" font-size="30" font-weight="700" fill="#122018">PC プロキシ</text>
+  <text x="1056" y="98" text-anchor="middle" font-size="24" fill="#3d4a43" font-family="'JetBrains Mono',monospace">Node :8787</text>
+  <!-- row 2 -->
+  <rect x="448" y="330" width="320" height="170" rx="16" fill="#e9efe6" stroke="#c5d3c9"/>
+  <text x="608" y="390" text-anchor="middle" font-size="30" font-weight="700" fill="#122018">whisper.cpp</text>
+  <text x="608" y="428" text-anchor="middle" font-size="24" fill="#3d4a43">文字起こし · ローカル</text>
+  <text x="608" y="464" text-anchor="middle" font-size="24" fill="#1b7f3b">無料 · 0.5 秒</text>
+  <rect x="896" y="330" width="320" height="170" rx="16" fill="#e9efe6" stroke="#c5d3c9"/>
+  <text x="1056" y="390" text-anchor="middle" font-size="30" font-weight="700" fill="#122018">Jev(TypeSafe)</text>
+  <text x="1056" y="428" text-anchor="middle" font-size="24" fill="#3d4a43">状態の判定 · API</text>
+  <text x="1056" y="464" text-anchor="middle" font-size="24" fill="#1b7f3b">0.2 秒 · ほぼ無料</text>
+  <rect x="1280" y="330" width="320" height="170" rx="16" fill="#e9efe6" stroke="#c5d3c9"/>
+  <text x="1440" y="390" text-anchor="middle" font-size="30" font-weight="700" fill="#122018">Claude Code</text>
+  <text x="1440" y="428" text-anchor="middle" font-size="24" fill="#3d4a43">助言の文章 · claude -p</text>
+  <text x="1440" y="464" text-anchor="middle" font-size="24" fill="#1b7f3b">サブスク枠 · 8 秒</text>
+  <!-- arrows -->
+  <line x1="320" y1="45" x2="440" y2="45" stroke="#1b7f3b" stroke-width="3" marker-end="url(#g)"/>
+  <text x="384" y="30" text-anchor="middle" font-size="22" fill="#1b7f3b">音声</text>
+  <line x1="448" y1="85" x2="328" y2="85" stroke="#8fa497" stroke-width="3" marker-end="url(#s)"/>
+  <text x="384" y="118" text-anchor="middle" font-size="22" fill="#6b7a71">表示</text>
+  <line x1="768" y1="65" x2="888" y2="65" stroke="#1b7f3b" stroke-width="3" marker-end="url(#g)"/>
+  <text x="832" y="48" text-anchor="middle" font-size="22" fill="#1b7f3b">HTTP</text>
+  <path d="M1056 130 L1056 230 M608 230 L1440 230" stroke="#1b7f3b" stroke-width="3" fill="none"/>
+  <line x1="608" y1="230" x2="608" y2="322" stroke="#1b7f3b" stroke-width="3" marker-end="url(#g)"/>
+  <line x1="1056" y1="230" x2="1056" y2="322" stroke="#1b7f3b" stroke-width="3" marker-end="url(#g)"/>
+  <line x1="1440" y1="230" x2="1440" y2="322" stroke="#1b7f3b" stroke-width="3" marker-end="url(#g)"/>
+  <text x="0" y="548" font-size="24" fill="#3d4a43">3 つのサービスはすべて Mac 1 台のプロキシ越し。音声は BLE でスマホへ、スマホからは 4 秒ごとの HTTP POST。鍵はプロキシの .env にだけ</text>
+</svg>

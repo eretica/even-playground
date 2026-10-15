@@ -8,3 +8,7 @@ dist/
 .DS_Store
 apps/scouter/server/models/
 apps/scouter/server/recordings/
+docs/slides/**/slides.html
+docs/slides/**/slides.pdf
+docs/slides/**/slides.pptx
+docs/slides/**/out/

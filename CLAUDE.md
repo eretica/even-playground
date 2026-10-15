@@ -10,6 +10,7 @@ Even G2 スマートグラス向け Even Hub アプリ(プラグイン)の実験
 | `docs/pitfalls.md` | 引っかかりやすい所(実体験ベースのコミュニティ知見込み) |
 | `docs/sdk-cheatsheet.md` | SDK API・制約値・イベント表の要約 |
 | `docs/vendor/` | 公式 Claude Code スキル / SDK README / 型定義の写し(grep 用) |
+| `docs/slides/scouter-jev/` | 勉強会スライド(Marp)。`slides.md` + `img/`、書き出し方は同階層の README |
 | `apps/scouter/` | 会話相手の状態をスカウター風に表示するアプリ(本命) |
 
 ## 前提・バージョン(2026-09-12 時点)
