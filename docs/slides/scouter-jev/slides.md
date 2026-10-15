@@ -25,6 +25,9 @@ style: |
   section.dark pre { background: #16241c; }
   section.code pre { font-size: 15.5px; line-height: 1.45; padding: 14px 18px; }
   section.tight h2 { margin-bottom: 8px; }
+  section.proxy table { font-size: 19px; }
+  section.proxy td code, section.proxy th code { font-size: 0.85em; }
+  section.proxy li { font-size: 20px; line-height: 1.4; }
   section.tight h3 { margin: 4px 0 0; }
   section.tight ul { margin: 4px 0 8px; }
   section.tight li { font-size: 21px; line-height: 1.4; }
@@ -120,6 +123,7 @@ Even G2 × whisper.cpp × *Jev* × Claude Code
 
 ---
 
+<!-- _class: dark -->
 <!-- _header: '01 / 作ったもの' -->
 
 ## 相手を「スカウター」で見る
@@ -152,6 +156,22 @@ Even G2 × whisper.cpp × *Jev* × Claude Code
 
 ---
 
+<!-- _class: cards -->
+<!-- _header: '01 / 作る前にやったこと' -->
+
+## まず AI に、公式ドキュメントとコミュニティの投稿を片っ端から読ませた
+
+- **集めたもの** 公式ドキュメント一式、SDK の README と型定義、公式テンプレ、開発者コミュニティの投稿(実機で詰まった報告)。要点を `CLAUDE.md` と `docs/`(手順・落とし穴・API 早見表)に集約してから書き始めた
+- **成果 1: 初手から無難に作れた** 「ダブルタップは確認ダイアログ付きで終了」「BLE 呼び出しは直列化」「絵文字は描画されない」など、レビュー落ち・実機で詰む系のルールを 12 条にして最初から守った
+- **成果 2: 話者が 3 パターンで取れると判明** グラスのマイク音声には発話ごとに self(装着者)/ other(相手)/ unknown のラベルが付く。これで「相手の発話だけを解析する」設計が成立した(グラス側の推定なので保証はない)
+
+<!--
+作り始める前に、Claude Code に公式ドキュメントとコミュニティの投稿を読ませて、知見をリポジトリ内のドキュメントに溜めた。
+コードを書く AI が毎回それを読むので、既知の落とし穴を踏まずに済んだ。話者ラベルの存在もここで知った。
+-->
+
+---
+
 <!-- _class: dark cards -->
 <!-- _header: '01 / PoC の割り切り' -->
 
@@ -176,6 +196,29 @@ Even G2 × whisper.cpp × *Jev* × Claude Code
 左から右へ。グラスのマイク音声が BLE でスマホに入り、スマホの WebView が 4 秒分ずつ PC のプロキシへ送る。
 プロキシが whisper で文字にし、Jev で状態を判定し、Claude Code で助言文を作って返す。結果はスマホがグラスに描く。
 iOS の WebView で WebSocket が落ちる報告があるので HTTP POST にしている。
+-->
+
+---
+
+<!-- _class: tight proxy -->
+<!-- _header: '02 / PC プロキシの中身' -->
+
+## 中身は 3 つのエンドポイント、約 100 行
+
+| エンドポイント | 入力 → 出力 | 中でやること |
+|---|---|---|
+| `GET /health` | → 使っている STT / LLM、二段表示の可否 | クライアントが起動時に見て挙動を切り替える |
+| `POST /transcribe` | PCM 16kHz(4 秒分)→ `{ text }` | 無音なら即返す → whisper-server(OpenAI 互換)→ 正規表現の幻聴リスト → Jev ゲート(noul) |
+| `POST /analyze?stage=fast` | 直近の発話 + 前回の結果 → 数値 | Jev に 9 問を 1 リクエスト。confidence が低い顔・一言は前回値を保持 |
+| `POST /analyze?stage=text` | 同上 → 助言・深掘り・要約・memory | `claude -p --json-schema` を子プロセスで起動。2 回目以降は `--resume` で新しい発話だけ渡す |
+
+- **Web 標準の Request / Response だけで書いた**。Node と Cloudflare Workers は薄いアダプタで、同じ本体が動く
+- **サービスは環境変数で差し替え**。`LLM_PROVIDER=jev+claude-code` のような合成も、`?provider=` での比較もできる
+- **鍵と到達性**。Bearer 認証は任意、開発中は Vite の中継で同一オリジン、外出先は Tailscale で Mac へ
+
+<!--
+プロキシの役割は「鍵を持つ」「重い処理を Mac に寄せる」「サービスを差し替え可能にする」の 3 つ。
+Web 標準の Request / Response だけで書いたので、Cloudflare Workers に置く時もアダプタを足すだけで済む。
 -->
 
 ---
