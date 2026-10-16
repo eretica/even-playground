@@ -3,7 +3,7 @@
 スマートグラス **Even Realities G2** 向けのアプリを、気軽に試すための遊び場です。
 本命は `apps/scouter/`。会話相手の「状態」を推定して、グラスの端にスカウター風に出すアプリです。
 
-![グラスの表示](docs/slides/scouter-jev/img/glasses.png)
+![グラスの表示](docs/slides/scouter-jev/img/glasses-dark.png)
 
 - 喜怒哀楽・関心・本音をゲージで、顔アイコンと一言ラベルつき
 - 「次に言う一言」と「深掘りポイント」を短く提案
