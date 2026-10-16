@@ -56,6 +56,8 @@ export function ensureWhitelist(origin, file = 'app.json') {
   if (!net) return false
   net.whitelist ??= []
   if (net.whitelist.includes(origin)) return false
+  // リポジトリに入っている例示値(192.168.1.2)や伏せ字(100.x.y.z)は、実際の IP を足すときに外す
+  net.whitelist = net.whitelist.filter(o => !/192\.168\.1\.2:|[a-z]\.[a-z]\.[a-z]/.test(o))
   net.whitelist.push(origin)
   writeFileSync(file, JSON.stringify(json, null, 2) + '\n')
   return true
